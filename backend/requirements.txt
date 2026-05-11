@@ -1,0 +1,12 @@
+fastapi==0.136.1
+uvicorn==0.35.0
+sqlalchemy==2.0.41
+psycopg2-binary==2.9.10
+python-dotenv==1.1.1
+passlib[bcrypt]==1.7.4
+python-jose==3.5.0
+pydantic==2.11.5
+
+# Pin explicit bcrypt backend to avoid passlib/bcrypt runtime incompatibility
+bcrypt==4.0.1
+cffi==1.17.1
