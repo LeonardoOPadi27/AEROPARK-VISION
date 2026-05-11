@@ -1,0 +1,98 @@
+# =========================
+# 🔹 SISTEMA
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# 🔹 NODE / FRONTEND (React + Vite)
+# =========================
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# 🔹 VARIABLES DE ENTORNO
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# 🔹 PYTHON / BACKEND
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Entornos virtuales
+venv/
+env/
+.venv/
+
+# =========================
+# 🔹 BASE DE DATOS LOCAL
+# =========================
+*.db
+*.sqlite
+
+# =========================
+# 🔹 IA / MODELOS
+# =========================
+ai-model/weights/
+ai-model/results/
+
+# Modelos grandes
+*.pt
+*.pth
+*.onnx
+
+# =========================
+# 🔹 DATASETS (MUY IMPORTANTE)
+# =========================
+datasets/raw/
+datasets/processed/
+datasets/annotated/
+
+# =========================
+# 🔹 ARCHIVOS GENERADOS
+# =========================
+reports/
+*.log
+*.tmp
+
+# =========================
+# 🔹 IDEs / EDITORES
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# 🔹 DOCKER
+# =========================
+docker-data/
+*.pid
+
+# =========================
+# 🔹 ARCHIVOS DE SISTEMA BACKEND
+# =========================
+backend/.env
+backend/.env.*
+
+# =========================
+# 🔹 ARCHIVOS TEMPORALES FRONTEND
+# =========================
+frontend/node_modules/
+frontend/dist/
+
+# =========================
+# 🔹 OTROS
+# =========================
+*.zip
+*.tar
+*.gz
