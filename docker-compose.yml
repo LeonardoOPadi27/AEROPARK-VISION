@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aeropark-postgres
+    environment:
+      POSTGRES_DB: aeropark_vision
+      POSTGRES_USER: aeropark
+      POSTGRES_PASSWORD: aeropark123
+    ports:
+      - "5432:5432"
+    volumes:
+      - aeropark_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeropark -d aeropark_vision"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  aeropark_postgres_data:

@@ -2,9 +2,15 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
-from jose import jwt
+from jose import JWTError, jwt
 from dotenv import load_dotenv
+
+from app.config.database import get_db
+from app.models.usuario import Usuario
+from sqlalchemy.orm import Session
 
 load_dotenv()
 
@@ -14,6 +20,7 @@ pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto
 SECRET_KEY = os.getenv("SECRET_KEY", "change_this_secret_in_production")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+security_scheme = HTTPBearer()
 
 
 def hash_password(password: str) -> str:
@@ -48,3 +55,34 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
 	encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 	return encoded_jwt
 
+
+def decode_access_token(token: str) -> Dict[str, Any]:
+	try:
+		return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+	except JWTError as exc:
+		raise HTTPException(
+			status_code=status.HTTP_401_UNAUTHORIZED,
+			detail="Token inválido o expirado",
+		) from exc
+
+
+def get_current_user(
+	credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+	db: Session = Depends(get_db),
+) -> Usuario:
+	payload = decode_access_token(credentials.credentials)
+	correo = payload.get("sub")
+	if not correo:
+		raise HTTPException(
+			status_code=status.HTTP_401_UNAUTHORIZED,
+			detail="Token inválido",
+		)
+
+	user = db.query(Usuario).filter(Usuario.correo == correo).first()
+	if not user:
+		raise HTTPException(
+			status_code=status.HTTP_401_UNAUTHORIZED,
+			detail="Usuario no encontrado",
+		)
+
+	return user

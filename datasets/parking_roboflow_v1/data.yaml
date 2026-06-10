@@ -1,0 +1,16 @@
+path: /Users/alexis/Documents/AEROPARK-VISION/datasets/parking_roboflow_v1
+train: train/images
+val: test/images
+test: test/images
+
+nc: 2
+names:
+  0: car
+  1: motorcycle
+
+roboflow:
+  workspace: dalexis
+  project: aeropark-vision-v1
+  version: 1
+  license: Public Domain
+  url: https://universe.roboflow.com/dalexis/aeropark-vision-v1/dataset/1

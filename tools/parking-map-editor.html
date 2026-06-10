@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AeroPark Vision - Editor de espacios</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #080908;
+        color: #f8fafc;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        min-height: 100vh;
+      }
+
+      aside {
+        border-right: 1px solid rgba(255, 255, 255, 0.14);
+        background: #111311;
+        padding: 20px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+      }
+
+      p {
+        color: rgba(255, 255, 255, 0.62);
+        line-height: 1.45;
+      }
+
+      label {
+        display: block;
+        margin-top: 18px;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #92ff44;
+      }
+
+      input,
+      button,
+      select,
+      textarea {
+        box-sizing: border-box;
+        width: 100%;
+        margin-top: 8px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(0, 0, 0, 0.35);
+        color: #f8fafc;
+        padding: 11px 12px;
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      button.primary {
+        border-color: rgba(146, 255, 68, 0.45);
+        background: #92ff44;
+        color: #050505;
+      }
+
+      button.secondary {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .zoom-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      textarea {
+        min-height: 180px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+
+      .stage {
+        overflow: auto;
+        padding: 20px;
+      }
+
+      canvas {
+        display: block;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: #020202;
+      }
+
+      .list {
+        margin-top: 14px;
+        max-height: 190px;
+        overflow: auto;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+      }
+
+      .space-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 13px;
+      }
+
+      .space-row:first-child {
+        border-top: 0;
+      }
+
+      .muted {
+        color: rgba(255, 255, 255, 0.5);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <aside>
+        <h1>Editor de espacios</h1>
+        <p>
+          Carga una imagen base, marca las esquinas de cada cajon y exporta el
+          JSON para el backend.
+        </p>
+
+        <label for="imageInput">Imagen base</label>
+        <input id="imageInput" type="file" accept="image/*" />
+
+        <label for="mapName">Nombre del mapa</label>
+        <input id="mapName" value="Estacionamiento Tecsup" />
+
+        <label for="spaceCode">Codigo de espacio</label>
+        <input id="spaceCode" value="E-001" />
+
+        <div class="button-row">
+          <button id="saveSpace" class="primary" type="button">Guardar</button>
+          <button id="undoPoint" class="secondary" type="button">Deshacer</button>
+        </div>
+        <div class="button-row">
+          <button id="nextCode" class="secondary" type="button">Siguiente</button>
+          <button id="clearDraft" class="secondary" type="button">Limpiar</button>
+        </div>
+
+        <label>Zoom</label>
+        <div class="zoom-row">
+          <button id="zoomOut" class="secondary" type="button">-</button>
+          <button id="fitImage" class="secondary" type="button">Ajustar</button>
+          <button id="zoomIn" class="secondary" type="button">+</button>
+        </div>
+        <p id="zoomLabel" class="muted">100%</p>
+
+        <label>Espacios guardados</label>
+        <div id="spaceList" class="list"></div>
+
+        <label for="jsonOutput">JSON exportado</label>
+        <textarea id="jsonOutput" spellcheck="false"></textarea>
+        <button id="copyJson" class="primary" type="button">Copiar JSON</button>
+      </aside>
+
+      <section class="stage">
+        <canvas id="canvas"></canvas>
+        <p class="muted">
+          Clic izquierdo agrega puntos. Guarda cuando tengas 4 puntos o mas.
+        </p>
+      </section>
+    </main>
+
+    <script>
+      const imageInput = document.getElementById("imageInput");
+      const mapName = document.getElementById("mapName");
+      const spaceCode = document.getElementById("spaceCode");
+      const saveSpace = document.getElementById("saveSpace");
+      const undoPoint = document.getElementById("undoPoint");
+      const nextCode = document.getElementById("nextCode");
+      const clearDraft = document.getElementById("clearDraft");
+      const zoomOut = document.getElementById("zoomOut");
+      const fitImage = document.getElementById("fitImage");
+      const zoomIn = document.getElementById("zoomIn");
+      const zoomLabel = document.getElementById("zoomLabel");
+      const copyJson = document.getElementById("copyJson");
+      const jsonOutput = document.getElementById("jsonOutput");
+      const spaceList = document.getElementById("spaceList");
+      const canvas = document.getElementById("canvas");
+      const context = canvas.getContext("2d");
+
+      let image = null;
+      let imageName = "";
+      let draft = [];
+      let spaces = [];
+      let zoom = 1;
+
+      function padCode(value) {
+        return String(value).padStart(3, "0");
+      }
+
+      function currentNumber() {
+        const match = spaceCode.value.match(/(\d+)$/);
+        return match ? Number(match[1]) : spaces.length + 1;
+      }
+
+      function updateJson() {
+        const payload = {
+          name: mapName.value.trim() || "Mapa de estacionamiento",
+          image: imageName,
+          coordinate_system: "image_pixels",
+          spaces,
+        };
+        jsonOutput.value = JSON.stringify(payload, null, 2);
+      }
+
+      function renderList() {
+        spaceList.innerHTML = "";
+        if (!spaces.length) {
+          const empty = document.createElement("div");
+          empty.className = "space-row muted";
+          empty.textContent = "Sin espacios guardados";
+          spaceList.appendChild(empty);
+          return;
+        }
+
+        for (const space of spaces) {
+          const row = document.createElement("div");
+          row.className = "space-row";
+          row.innerHTML = `<strong>${space.code}</strong><span>${space.polygon.length} puntos</span>`;
+          spaceList.appendChild(row);
+        }
+      }
+
+      function setCanvasDisplaySize() {
+        if (!image) return;
+        canvas.style.width = `${Math.round(image.width * zoom)}px`;
+        canvas.style.height = `${Math.round(image.height * zoom)}px`;
+        zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+      }
+
+      function fitToStage() {
+        if (!image) return;
+        const stage = document.querySelector(".stage");
+        const availableWidth = Math.max(stage.clientWidth - 40, 320);
+        const availableHeight = Math.max(window.innerHeight - 80, 320);
+        zoom = Math.min(
+          availableWidth / image.width,
+          availableHeight / image.height,
+          1,
+        );
+        setCanvasDisplaySize();
+      }
+
+      function drawPolygon(points, stroke, fill) {
+        if (!points.length) return;
+        context.beginPath();
+        context.moveTo(points[0][0], points[0][1]);
+        for (const point of points.slice(1)) {
+          context.lineTo(point[0], point[1]);
+        }
+        if (points.length > 2) {
+          context.closePath();
+          context.fillStyle = fill;
+          context.fill();
+        }
+        context.strokeStyle = stroke;
+        context.lineWidth = 3;
+        context.stroke();
+
+        for (const point of points) {
+          context.beginPath();
+          context.arc(point[0], point[1], 5, 0, Math.PI * 2);
+          context.fillStyle = stroke;
+          context.fill();
+        }
+      }
+
+      function renderCanvas() {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        if (image) {
+          context.drawImage(image, 0, 0);
+        }
+
+        for (const space of spaces) {
+          drawPolygon(space.polygon, "#92ff44", "rgba(146, 255, 68, 0.16)");
+          const first = space.polygon[0];
+          if (first) {
+            context.fillStyle = "#ffffff";
+            context.font = "bold 20px Arial";
+            context.fillText(space.code, first[0] + 8, first[1] + 24);
+          }
+        }
+
+        drawPolygon(draft, "#ef4444", "rgba(239, 68, 68, 0.16)");
+      }
+
+      function refresh() {
+        renderCanvas();
+        renderList();
+        updateJson();
+      }
+
+      imageInput.addEventListener("change", () => {
+        const file = imageInput.files[0];
+        if (!file) return;
+
+        imageName = file.name;
+        const url = URL.createObjectURL(file);
+        const nextImage = new Image();
+        nextImage.onload = () => {
+          image = nextImage;
+          canvas.width = image.width;
+          canvas.height = image.height;
+          fitToStage();
+          draft = [];
+          refresh();
+          URL.revokeObjectURL(url);
+        };
+        nextImage.src = url;
+      });
+
+      canvas.addEventListener("click", (event) => {
+        if (!image) return;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = Math.round((event.clientX - rect.left) * scaleX);
+        const y = Math.round((event.clientY - rect.top) * scaleY);
+        draft.push([x, y]);
+        refresh();
+      });
+
+      saveSpace.addEventListener("click", () => {
+        if (draft.length < 3) return;
+        spaces.push({
+          code: spaceCode.value.trim() || `E-${padCode(spaces.length + 1)}`,
+          polygon: draft,
+        });
+        draft = [];
+        spaceCode.value = `E-${padCode(currentNumber() + 1)}`;
+        refresh();
+      });
+
+      undoPoint.addEventListener("click", () => {
+        draft.pop();
+        refresh();
+      });
+
+      clearDraft.addEventListener("click", () => {
+        draft = [];
+        refresh();
+      });
+
+      nextCode.addEventListener("click", () => {
+        spaceCode.value = `E-${padCode(currentNumber() + 1)}`;
+      });
+
+      zoomOut.addEventListener("click", () => {
+        if (!image) return;
+        zoom = Math.max(0.1, zoom - 0.1);
+        setCanvasDisplaySize();
+      });
+
+      fitImage.addEventListener("click", () => {
+        fitToStage();
+      });
+
+      zoomIn.addEventListener("click", () => {
+        if (!image) return;
+        zoom = Math.min(2, zoom + 0.1);
+        setCanvasDisplaySize();
+      });
+
+      copyJson.addEventListener("click", async () => {
+        updateJson();
+        await navigator.clipboard.writeText(jsonOutput.value);
+      });
+
+      mapName.addEventListener("input", updateJson);
+      refresh();
+    </script>
+  </body>
+</html>

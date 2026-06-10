@@ -1,0 +1,25 @@
+{
+  "name": "Estacionamiento Tecsup - ejemplo",
+  "image": "backend/uploads/e39e55a15c4e47a3a1755b2901ce7f6c.jpg",
+  "coordinate_system": "image_pixels",
+  "spaces": [
+    {
+      "code": "E-001",
+      "polygon": [
+        [100, 100],
+        [180, 100],
+        [180, 180],
+        [100, 180]
+      ]
+    },
+    {
+      "code": "E-002",
+      "polygon": [
+        [190, 100],
+        [270, 100],
+        [270, 180],
+        [190, 180]
+      ]
+    }
+  ]
+}

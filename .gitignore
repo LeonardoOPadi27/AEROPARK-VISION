@@ -58,11 +58,18 @@ ai-model/results/
 datasets/raw/
 datasets/processed/
 datasets/annotated/
+datasets/**/images/
+datasets/**/previews/
+datasets/**/*.jpg
+datasets/**/*.jpeg
+datasets/**/*.png
+datasets/**/*.cache
 
 # =========================
 # 🔹 ARCHIVOS GENERADOS
 # =========================
 reports/
+docs/stress-results-*.csv
 *.log
 *.tmp
 
@@ -83,6 +90,8 @@ docker-data/
 # =========================
 backend/.env
 backend/.env.*
+backend/uploads/
+backend/data/*.json
 test.db
 
 # =========================
