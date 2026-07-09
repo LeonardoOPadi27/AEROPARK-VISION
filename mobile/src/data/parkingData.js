@@ -49,26 +49,6 @@ export const initialParkingZones = [
       "free",
     ]),
   },
-  {
-    id: "C",
-    title: "Estacionamiento C",
-    subtitle: "Zona posterior",
-    updatedAt: "08:16 a. m.",
-    spaces: createSpaces("C", [
-      "free",
-      "free",
-      "free",
-      "occupied",
-      "occupied",
-      "free",
-      "occupied",
-      "free",
-      "free",
-      "occupied",
-      "free",
-      "free",
-    ]),
-  },
 ];
 
 export const historyItems = [
@@ -83,13 +63,6 @@ export const historyItems = [
     id: "AN-103",
     zone: "Estacionamiento A",
     processedAt: "08 Jun 2026 · 08:15 a. m.",
-    free: 8,
-    occupied: 4,
-  },
-  {
-    id: "AN-102",
-    zone: "Estacionamiento C",
-    processedAt: "08 Jun 2026 · 08:16 a. m.",
     free: 8,
     occupied: 4,
   },

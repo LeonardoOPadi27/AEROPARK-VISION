@@ -12,7 +12,6 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 @router.get("/overview")
 def settings_overview(
     db: Session = Depends(get_db),
-    _: Usuario = Depends(get_current_user),
 ):
     return get_settings_overview(db)
 

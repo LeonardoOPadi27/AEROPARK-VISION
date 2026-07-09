@@ -15,7 +15,6 @@ import { API_BASE_URL, getLatestImage, uploadImage } from "../services/api";
 const parkingZones = [
   { code: "A", label: "Zona A" },
   { code: "B", label: "Zona B" },
-  { code: "C", label: "Zona C" },
 ];
 
 const formatFileSize = (bytes) => {
@@ -145,15 +144,13 @@ export default function UploadImagesPage({ onLogout }) {
           }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
-          className={`relative grid min-h-[340px] place-items-center overflow-hidden rounded-3xl border border-dashed p-7 text-center transition ${
+          className={`relative grid min-h-[340px] place-items-center overflow-hidden rounded-3xl border border-dashed bg-transparent p-7 text-center transition ${
             isDragging
-              ? "border-white/45 rounded-3xl border border-white/10 bg-[#0a0a0a]"
-              : "border-white/20 rounded-3xl border border-white/10 bg-[#0a0a0a]"
+              ? "border-white/45"
+              : "border-white/20"
           }`}
         >
           <DottedSurface className="z-0 opacity-40" />
-          <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,.04),transparent_62%)]" />
-
           <input
             ref={inputRef}
             type="file"
@@ -192,7 +189,7 @@ export default function UploadImagesPage({ onLogout }) {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="liquid-action-button liquid-action-button-light mt-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold"
+              className="upload-select-button liquid-action-button liquid-action-button-light mt-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold"
             >
               <ImagePlus className="h-5 w-5" />
               Seleccionar imagen
@@ -299,7 +296,7 @@ export default function UploadImagesPage({ onLogout }) {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="liquid-action-button inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+              className="upload-select-button liquid-action-button liquid-action-button-light inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
             >
               <RefreshCw className="h-4 w-4" />
               Cambiar
@@ -310,7 +307,7 @@ export default function UploadImagesPage({ onLogout }) {
             type="button"
             onClick={clearImage}
             disabled={!imageFile && !activeImage}
-            className="liquid-action-button mt-3 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+            className="upload-select-button liquid-action-button liquid-action-button-light mt-3 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
           >
             <Trash2 className="h-4 w-4" />
             Quitar imagen

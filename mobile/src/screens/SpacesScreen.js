@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import GlassCard from "../components/GlassCard";
 import SectionHeader from "../components/SectionHeader";
 import ZonePill from "../components/ZonePill";
-import SpaceCell from "../components/SpaceCell";
+import ParkingPhysicalMap from "../components/ParkingPhysicalMap";
 import SpaceActionSheet from "../components/SpaceActionSheet";
 import { colors, radii, spacing } from "../theme";
 import { getZoneSummary } from "../utils/parking";
@@ -30,7 +30,7 @@ export default function SpacesScreen({
         <SectionHeader
           eyebrow="Zonas Tecsup"
           title="Espacios"
-          description="Cambia entre los tres estacionamientos y consulta los codigos disponibles antes de estacionarte."
+          description="Cambia entre las zonas habilitadas y consulta los espacios disponibles segun su posicion fisica."
         />
 
         <View style={styles.zoneTabs}>
@@ -68,15 +68,10 @@ export default function SpacesScreen({
           </View>
         </GlassCard>
 
-        <View style={styles.grid}>
-          {activeZone.spaces.map((space) => (
-            <SpaceCell
-              key={space.code}
-              space={space}
-              onPress={() => setSelectedSpace(space)}
-            />
-          ))}
-        </View>
+        <ParkingPhysicalMap
+          zone={activeZone}
+          onSelectSpace={(space) => setSelectedSpace(space)}
+        />
       </ScrollView>
 
       <SpaceActionSheet
@@ -181,10 +176,5 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "900",
     marginTop: 8,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
   },
 });

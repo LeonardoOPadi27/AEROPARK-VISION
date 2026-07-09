@@ -68,11 +68,14 @@ export default function App() {
         getParkingOverview(),
         getAnalysisList(),
       ]);
-      setZones(overview.zones ?? []);
+      const enabledZones = (overview.zones ?? []).filter((zone) =>
+        ["A", "B"].includes(zone.id),
+      );
+      setZones(enabledZones);
       setActiveZoneId((currentZoneId) =>
-        overview.zones?.some((zone) => zone.id === currentZoneId)
+        enabledZones.some((zone) => zone.id === currentZoneId)
           ? currentZoneId
-          : (overview.zones?.[0]?.id ?? "A"),
+          : (enabledZones[0]?.id ?? "A"),
       );
       setHistoryItems(buildMobileHistoryItems(analysisItems));
     } catch (loadError) {

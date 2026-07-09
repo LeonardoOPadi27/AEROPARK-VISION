@@ -222,7 +222,6 @@ export default function SettingsPage({ onLogout }) {
                   >
                     <option value="A">Estacionamiento A</option>
                     <option value="B">Estacionamiento B</option>
-                    <option value="C">Estacionamiento C</option>
                   </select>
                   <p className="mt-2 text-sm leading-6 text-white/52">
                     Se puede usar como punto inicial en la experiencia mobile.

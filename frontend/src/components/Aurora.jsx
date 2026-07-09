@@ -16,6 +16,7 @@ uniform float uAmplitude;
 uniform vec3 uColorStops[3];
 uniform vec2 uResolution;
 uniform float uBlend;
+uniform float uLightMode;
 
 out vec4 fragColor;
 
@@ -102,8 +103,15 @@ void main() {
   float auroraAlpha = smoothstep(midPoint - uBlend * 0.5, midPoint + uBlend * 0.5, intensity);
 
   vec3 auroraColor = intensity * rampColor;
+  float finalAlpha = auroraAlpha;
+  if (uLightMode > 0.5) {
+    vec3 lightBase = vec3(0.94, 0.985, 1.0);
+    auroraColor = mix(lightBase, rampColor, 0.72);
+    auroraColor *= 0.76 + auroraAlpha * 0.24;
+    finalAlpha = auroraAlpha * 0.42;
+  }
 
-  fragColor = vec4(auroraColor * auroraAlpha, auroraAlpha);
+  fragColor = vec4(auroraColor, finalAlpha);
 }
 `;
 
@@ -119,10 +127,18 @@ export default function Aurora({
   blend = 0.5,
   time,
   speed = 1,
+  lightMode = false,
 }) {
   const containerRef = useRef(null);
-  const propsRef = useRef({ colorStops, amplitude, blend, time, speed });
-  propsRef.current = { colorStops, amplitude, blend, time, speed };
+  const propsRef = useRef({
+    colorStops,
+    amplitude,
+    blend,
+    time,
+    speed,
+    lightMode,
+  });
+  propsRef.current = { colorStops, amplitude, blend, time, speed, lightMode };
 
   useEffect(() => {
     const container = containerRef.current;
@@ -130,13 +146,13 @@ export default function Aurora({
 
     const renderer = new Renderer({
       alpha: true,
-      premultipliedAlpha: true,
+      premultipliedAlpha: false,
       antialias: true,
     });
     const { gl } = renderer;
     gl.clearColor(0, 0, 0, 0);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.canvas.style.backgroundColor = "transparent";
 
     const geometry = new Triangle(gl);
@@ -153,6 +169,7 @@ export default function Aurora({
         uColorStops: { value: toColorArray(colorStops) },
         uResolution: { value: [container.offsetWidth, container.offsetHeight] },
         uBlend: { value: blend },
+        uLightMode: { value: lightMode ? 1 : 0 },
       },
     });
 
@@ -177,6 +194,7 @@ export default function Aurora({
       program.uniforms.uColorStops.value = toColorArray(
         current.colorStops ?? colorStops,
       );
+      program.uniforms.uLightMode.value = current.lightMode ? 1 : 0;
       renderer.render({ scene: mesh });
     };
 

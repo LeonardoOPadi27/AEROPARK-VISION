@@ -7,7 +7,6 @@ ZONE_METADATA_PATH = PROJECT_ROOT / "backend" / "data" / "image_zone_metadata.js
 ZONE_LABELS = {
     "A": "Estacionamiento A",
     "B": "Estacionamiento B",
-    "C": "Estacionamiento C",
 }
 
 

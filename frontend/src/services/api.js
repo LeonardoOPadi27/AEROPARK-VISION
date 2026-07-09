@@ -32,7 +32,11 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const requestUrl = error.config?.url || "";
 
-    if (status === 401 && !requestUrl.includes("/auth/login")) {
+    if (
+      status === 401 &&
+      !requestUrl.includes("/auth/login") &&
+      !error.config?.suppressAuthRedirect
+    ) {
       clearStoredSession();
       window.dispatchEvent(new Event("session-expired"));
     }
@@ -117,7 +121,9 @@ export const getReportsOverview = async () => {
 };
 
 export const getSettingsOverview = async () => {
-  const { data } = await api.get("/settings/overview");
+  const { data } = await api.get("/settings/overview", {
+    suppressAuthRedirect: true,
+  });
   return data;
 };
 
@@ -127,7 +133,9 @@ export const updateMobileSettings = async (payload) => {
 };
 
 export const getCurrentUser = async () => {
-  const { data } = await api.get("/auth/me");
+  const { data } = await api.get("/auth/me", {
+    suppressAuthRedirect: true,
+  });
   return data;
 };
 

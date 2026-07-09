@@ -5,7 +5,7 @@ Base mobile creada con Expo para el usuario final de Tecsup.
 ## Que incluye ahora
 
 - Inicio centrado en disponibilidad por 3 zonas.
-- Pantalla de espacios con codigos `A-001`, `B-001`, `C-001`.
+- Pantalla de espacios con codigos `A-001` y `B-001`.
 - Flujo real para marcar `Estoy estacionado aqui` y `Liberar espacio`.
 - Historial y perfil como primeras bases.
 - Consumo del backend en `/mobile/parking-overview`.

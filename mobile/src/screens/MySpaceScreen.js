@@ -26,7 +26,6 @@ function buildRouteHint(space) {
   const hints = {
     A: "Cerca del ingreso principal y el acceso peatonal.",
     B: "Ubicacion intermedia junto a los pabellones.",
-    C: "Zona posterior, mas despejada en horas punta.",
   };
 
   return hints[space.zone.id] ?? null;

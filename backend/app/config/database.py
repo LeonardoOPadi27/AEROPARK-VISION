@@ -8,7 +8,7 @@ load_dotenv()
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg2://aeropark:aeropark123@localhost:5432/aeropark_vision",
+    "postgresql+psycopg2://aeropark:aeropark123@localhost:5433/aeropark_vision",
 )
 
 connect_args = {}

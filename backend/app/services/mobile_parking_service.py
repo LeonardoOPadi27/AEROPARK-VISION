@@ -24,11 +24,6 @@ ZONE_DEFINITIONS = [
         "title": "Estacionamiento B",
         "subtitle": "Zona pabellones",
     },
-    {
-        "id": "C",
-        "title": "Estacionamiento C",
-        "subtitle": "Zona posterior",
-    },
 ]
 
 

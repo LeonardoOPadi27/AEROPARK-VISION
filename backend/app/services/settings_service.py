@@ -133,7 +133,7 @@ def update_mobile_settings(payload: dict) -> dict:
     settings = _load_settings()
     current = settings["mobile"]
     zone_value = str(payload.get("default_zone", current["default_zone"])).strip().upper()
-    if zone_value not in {"A", "B", "C"}:
+    if zone_value not in {"A", "B"}:
         zone_value = current["default_zone"]
 
     settings["mobile"] = {

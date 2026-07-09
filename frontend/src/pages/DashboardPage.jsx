@@ -77,7 +77,7 @@ function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black px-3 py-2 text-sm shadow-2xl">
+    <div className="chart-floating-tooltip rounded-2xl px-3 py-2 text-sm shadow-2xl">
       <p className="text-white/45">{label}</p>
       <p className="font-medium text-white">{payload[0].value} vehículos</p>
     </div>
@@ -209,11 +209,11 @@ export default function DashboardPage({ onLogout }) {
         ? "Estimación YOLO + app mobile"
         : "Estimación YOLO";
   const occupancyData = [
-    { name: "Ocupados", value: occupancyPercent, color: "#ffffff" },
+    { name: "Ocupados", value: occupancyPercent, color: "var(--occupancy-occupied-dot)" },
     {
       name: "Libres",
       value: Math.max(0, Number((100 - occupancyPercent).toFixed(1))),
-      color: "#3f3f46",
+      color: "var(--occupancy-free-dot)",
     },
   ];
   const colorRows = latestAnalysis?.color_distribution ?? [];
@@ -294,19 +294,27 @@ export default function DashboardPage({ onLogout }) {
                 >
                   <defs>
                     <linearGradient id="vehicleFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ffffff" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+                      <stop
+                        offset="0%"
+                        stopColor="var(--chart-vehicle-fill)"
+                        stopOpacity={0.22}
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor="var(--chart-vehicle-fill)"
+                        stopOpacity={0}
+                      />
                     </linearGradient>
                   </defs>
                   <XAxis
                     dataKey="hora"
-                    tick={{ fill: "rgba(255,255,255,.45)", fontSize: 12 }}
+                    tick={{ fill: "var(--chart-axis-color)", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
                     domain={[0, "dataMax + 5"]}
-                    tick={{ fill: "rgba(255,255,255,.35)", fontSize: 12 }}
+                    tick={{ fill: "var(--chart-muted-axis-color)", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
                   />
@@ -314,11 +322,16 @@ export default function DashboardPage({ onLogout }) {
                   <Area
                     type="monotone"
                     dataKey="autos"
-                    stroke="#ffffff"
-                    strokeWidth={2}
+                    stroke="var(--chart-vehicle-line)"
+                    strokeWidth={2.4}
                     fill="url(#vehicleFill)"
                     dot={false}
-                    activeDot={{ r: 4, fill: "#000", stroke: "#fff", strokeWidth: 2 }}
+                    activeDot={{
+                      r: 4,
+                      fill: "var(--chart-active-dot-fill)",
+                      stroke: "var(--chart-active-dot-stroke)",
+                      strokeWidth: 2,
+                    }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -340,14 +353,14 @@ export default function DashboardPage({ onLogout }) {
                   <PieChart>
                     <defs>
                       <linearGradient id="occupied3d" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#ffffff" />
-                        <stop offset="55%" stopColor="#d9e8f5" />
-                        <stop offset="100%" stopColor="#8295a8" />
+                        <stop offset="0%" stopColor="var(--occupancy-occupied-start)" />
+                        <stop offset="55%" stopColor="var(--occupancy-occupied-mid)" />
+                        <stop offset="100%" stopColor="var(--occupancy-occupied-end)" />
                       </linearGradient>
                       <linearGradient id="free3d" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#59616e" />
-                        <stop offset="55%" stopColor="#303640" />
-                        <stop offset="100%" stopColor="#15181d" />
+                        <stop offset="0%" stopColor="var(--occupancy-free-start)" />
+                        <stop offset="55%" stopColor="var(--occupancy-free-mid)" />
+                        <stop offset="100%" stopColor="var(--occupancy-free-end)" />
                       </linearGradient>
                       <filter id="donutGlow" x="-40%" y="-40%" width="180%" height="180%">
                         <feGaussianBlur stdDeviation="3" result="blur" />
@@ -372,7 +385,7 @@ export default function DashboardPage({ onLogout }) {
                       {occupancyData.map((entry) => (
                         <Cell
                           key={`base-${entry.name}`}
-                          fill={entry.name === "Ocupados" ? "transparent" : "#101318"}
+                          fill={entry.name === "Ocupados" ? "transparent" : "var(--occupancy-base-free)"}
                           stroke="none"
                         />
                       ))}
