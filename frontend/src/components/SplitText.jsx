@@ -30,14 +30,14 @@ export default function SplitText({
   }, [onLetterAnimationComplete]);
 
   useEffect(() => {
-    if (document.fonts.status === "loaded") {
-      setFontsLoaded(true);
-      return;
-    }
-
+    let active = true;
     document.fonts.ready.then(() => {
-      setFontsLoaded(true);
+      if (active) setFontsLoaded(true);
     });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useGSAP(

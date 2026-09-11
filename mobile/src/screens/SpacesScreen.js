@@ -51,19 +51,19 @@ export default function SpacesScreen({
               <Text style={styles.zoneMeta}>{activeZone.subtitle}</Text>
             </View>
             <View style={styles.summaryBadge}>
-              <Text style={styles.summaryBadgeValue}>{zoneSummary.free}</Text>
-              <Text style={styles.summaryBadgeLabel}>libres</Text>
+              <Text style={styles.summaryBadgeValue}>{zoneSummary.free ?? "--"}</Text>
+              <Text style={styles.summaryBadgeLabel}>libres est.</Text>
             </View>
           </View>
 
           <View style={styles.metricsRow}>
             <View style={styles.metricCard}>
               <Text style={styles.metricLabel}>Libres</Text>
-              <Text style={styles.metricValue}>{zoneSummary.free}</Text>
+              <Text style={styles.metricValue}>{zoneSummary.free ?? "--"}</Text>
             </View>
             <View style={styles.metricCard}>
               <Text style={styles.metricLabel}>Ocupados</Text>
-              <Text style={styles.metricValue}>{zoneSummary.occupied}</Text>
+              <Text style={styles.metricValue}>{zoneSummary.occupied ?? "--"}</Text>
             </View>
           </View>
         </GlassCard>

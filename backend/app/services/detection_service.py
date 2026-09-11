@@ -1,5 +1,7 @@
+import hashlib
 import os
 from pathlib import Path
+import urllib.request
 
 
 class DetectionUnavailableError(RuntimeError):
@@ -20,7 +22,33 @@ def get_weights_path() -> Path:
     return DEFAULT_WEIGHTS_PATH
 
 
+def ensure_weights_path() -> Path:
+    weights_path = get_weights_path()
+    if weights_path.exists():
+        return weights_path
+
+    weights_url = os.getenv("YOLO_WEIGHTS_URL", "").strip()
+    if not weights_url:
+        return weights_path
+
+    weights_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = weights_path.with_suffix(weights_path.suffix + ".download")
+    urllib.request.urlretrieve(weights_url, temporary_path)
+    temporary_path.replace(weights_path)
+    return weights_path
+
+
 def resolve_stored_image_path(stored_url: str) -> Path:
+    if stored_url.startswith(("http://", "https://")):
+        cache_dir = BACKEND_ROOT / "uploads" / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_name = hashlib.sha256(stored_url.encode("utf-8")).hexdigest()
+        extension = Path(stored_url.split("?", 1)[0]).suffix.lower() or ".jpg"
+        cached_path = cache_dir / f"{cache_name}{extension}"
+        if not cached_path.exists():
+            urllib.request.urlretrieve(stored_url, cached_path)
+        return cached_path
+
     normalized = stored_url.lstrip("/")
     if normalized.startswith("uploads/"):
         return BACKEND_ROOT / normalized
@@ -28,12 +56,20 @@ def resolve_stored_image_path(stored_url: str) -> Path:
 
 
 def get_yolo_status() -> dict:
-    weights_path = get_weights_path()
+    try:
+        weights_path = ensure_weights_path()
+    except Exception as exc:
+        return {
+            "ready": False,
+            "mode": "unavailable",
+            "weights_path": str(get_weights_path()),
+            "reason": f"No se pudo descargar el modelo YOLO: {exc}",
+        }
 
     if not weights_path.exists():
         return {
             "ready": False,
-            "mode": "mock",
+            "mode": "unavailable",
             "weights_path": str(weights_path),
             "reason": "No se encontró el archivo de pesos YOLO.",
         }
@@ -45,7 +81,7 @@ def get_yolo_status() -> dict:
     except Exception as exc:
         return {
             "ready": False,
-            "mode": "mock",
+            "mode": "unavailable",
             "weights_path": str(weights_path),
             "reason": f"Dependencias YOLO no disponibles: {exc}",
         }

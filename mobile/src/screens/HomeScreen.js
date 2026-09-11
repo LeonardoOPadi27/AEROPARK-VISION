@@ -9,6 +9,7 @@ export default function HomeScreen({ zones, setActiveZoneId, setActiveTab }) {
   const summary = getGlobalSummary(zones);
   const bestZone =
     [...zones]
+      .filter((zone) => getZoneSummary(zone).available)
       .sort((a, b) => getZoneSummary(b).free - getZoneSummary(a).free)
       .at(0) ?? null;
 
@@ -20,7 +21,7 @@ export default function HomeScreen({ zones, setActiveZoneId, setActiveTab }) {
       <SectionHeader
         eyebrow="Tecsup"
         title="Espacios disponibles"
-        description="Consulta las tres zonas del estacionamiento y revisa rapidamente donde aun quedan espacios libres."
+        description="Consulta las zonas A y B del estacionamiento y revisa rapidamente donde aun quedan espacios libres."
       />
 
       <GlassCard>
@@ -58,17 +59,17 @@ export default function HomeScreen({ zones, setActiveZoneId, setActiveTab }) {
                     {zone.subtitle} · actualizado {zone.updatedAt}
                   </Text>
                 </View>
-                <Text style={styles.zoneFree}>{zoneSummary.free}</Text>
+                <Text style={styles.zoneFree}>{zoneSummary.free ?? "--"}</Text>
               </View>
 
               <View style={styles.metricsRow}>
                 <View style={styles.metricBlock}>
                   <Text style={styles.metricLabel}>Libres</Text>
-                  <Text style={styles.metricValue}>{zoneSummary.free}</Text>
+                  <Text style={styles.metricValue}>{zoneSummary.free ?? "--"}</Text>
                 </View>
                 <View style={styles.metricBlock}>
                   <Text style={styles.metricLabel}>Ocupados</Text>
-                  <Text style={styles.metricValue}>{zoneSummary.occupied}</Text>
+                  <Text style={styles.metricValue}>{zoneSummary.occupied ?? "--"}</Text>
                 </View>
                 <Pressable
                   style={({ hovered, pressed }) => [

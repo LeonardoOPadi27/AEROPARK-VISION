@@ -1,105 +1,139 @@
-import json
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.analisis import AnalisisImagen
+from app.models.evento_espacio_movil import EventoEspacioMovil
 from app.models.imagen import ImagenCapturada
-from app.services.parking_space_service import get_latest_parking_spaces
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-REPORTS_PATH = PROJECT_ROOT / "backend" / "data" / "mobile_space_reports.json"
-EVENTS_PATH = PROJECT_ROOT / "backend" / "data" / "mobile_space_events.json"
-
-ZONE_DEFINITIONS = [
-    {
-        "id": "A",
-        "title": "Estacionamiento A",
-        "subtitle": "Ingreso principal",
-    },
-    {
-        "id": "B",
-        "title": "Estacionamiento B",
-        "subtitle": "Zona pabellones",
-    },
-]
+from app.models.reporte_espacio_movil import ReporteEspacioMovil
+from app.services.analysis_service import serialize_analysis
+from app.services.image_zone_service import get_image_zone
+from app.services.parking_zone_config import ZONE_DEFINITIONS
+from app.services.settings_service import get_mobile_settings
 
 
-def _ensure_json_file(path: Path, empty_payload: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not path.exists():
-        path.write_text(empty_payload, encoding="utf-8")
+def _serialize_report(report: ReporteEspacioMovil) -> dict:
+    return {
+        "status": "user_occupied",
+        "user_id": report.id_usuario,
+        "user_name": report.nombre_usuario,
+        "zone_id": report.codigo_zona,
+        "zone_title": report.titulo_zona,
+        "display_code": report.codigo_espacio,
+        "estimated_hours": report.horas_estimadas,
+        "started_at": report.fecha_inicio.isoformat(),
+        "expires_at": report.fecha_expiracion.isoformat(),
+        "confirmation_due_at": report.fecha_confirmacion_requerida.isoformat(),
+    }
 
 
-def _load_reports() -> dict:
-    _ensure_json_file(REPORTS_PATH, "{}")
-    try:
-        return json.loads(REPORTS_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {}
+def _load_reports(db: Session) -> dict:
+    return {
+        report.codigo_espacio: _serialize_report(report)
+        for report in db.query(ReporteEspacioMovil).all()
+    }
 
 
-def _save_reports(payload: dict) -> None:
-    _ensure_json_file(REPORTS_PATH, "{}")
-    REPORTS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+def _serialize_event(event: EventoEspacioMovil) -> dict:
+    return {
+        "event_type": event.tipo_evento,
+        "space_code": event.codigo_espacio,
+        "display_code": event.codigo_espacio,
+        "zone_id": event.codigo_zona,
+        "zone_title": event.titulo_zona,
+        "user_id": event.id_usuario,
+        "user_name": event.nombre_usuario,
+        "estimated_hours": event.horas_estimadas,
+        "started_at": event.fecha_inicio.isoformat() if event.fecha_inicio else None,
+        "expires_at": event.fecha_expiracion.isoformat() if event.fecha_expiracion else None,
+        "confirmation_due_at": (
+            event.fecha_confirmacion_requerida.isoformat()
+            if event.fecha_confirmacion_requerida
+            else None
+        ),
+        "occurred_at": event.fecha_evento.isoformat() if event.fecha_evento else None,
+    }
 
 
-def _load_events() -> list[dict]:
-    _ensure_json_file(EVENTS_PATH, "[]")
-    try:
-        payload = json.loads(EVENTS_PATH.read_text(encoding="utf-8"))
-        return payload if isinstance(payload, list) else []
-    except json.JSONDecodeError:
-        return []
+def get_mobile_space_events(db: Session) -> list[dict]:
+    events = db.query(EventoEspacioMovil).order_by(EventoEspacioMovil.id_evento).all()
+    return [_serialize_event(event) for event in events]
 
 
-def _save_events(payload: list[dict]) -> None:
-    _ensure_json_file(EVENTS_PATH, "[]")
-    EVENTS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+def get_active_mobile_reports(db: Session) -> dict:
+    return _load_reports(db)
 
 
-def get_mobile_space_events() -> list[dict]:
-    return _load_events()
-
-
-def get_active_mobile_reports() -> dict:
-    return _load_reports()
-
-
-def _get_latest_analysis(db: Session) -> AnalisisImagen:
-    latest_analysis = (
+def _get_latest_analysis(db: Session) -> AnalisisImagen | None:
+    return (
         db.query(AnalisisImagen)
         .join(ImagenCapturada)
+        .filter(AnalisisImagen.estado == "completado_yolo")
         .order_by(ImagenCapturada.id_imagen.desc())
         .first()
     )
-    if not latest_analysis:
-        raise HTTPException(status_code=404, detail="No hay análisis registrados.")
-    return latest_analysis
 
 
-def _build_zone_payload(spaces: list[dict], reports: dict) -> list[dict]:
-    total_spaces = len(spaces)
-    zone_count = len(ZONE_DEFINITIONS)
-    base_size = total_spaces // zone_count
-    extra = total_spaces % zone_count
-    cursor = 0
+def _get_latest_analysis_by_zone(db: Session) -> dict[str, dict]:
+    analyses = (
+        db.query(AnalisisImagen)
+        .join(ImagenCapturada)
+        .order_by(ImagenCapturada.id_imagen.desc())
+        .all()
+    )
+    latest_by_zone = {}
+
+    for analysis in analyses:
+        if analysis.estado != "completado_yolo":
+            continue
+        zone = get_image_zone(analysis.imagen)
+        zone_code = zone.get("zone_code") if zone else None
+        if zone_code and zone_code not in latest_by_zone:
+            latest_by_zone[zone_code] = serialize_analysis(analysis)
+
+    return latest_by_zone
+
+
+def _build_zone_payload(
+    reports: dict,
+    latest_by_zone: dict[str, dict],
+    *,
+    viewer_id: int | None = None,
+    include_all_user_details: bool = True,
+) -> list[dict]:
     zones = []
 
-    for zone_index, zone_definition in enumerate(ZONE_DEFINITIONS):
-        size = base_size + (1 if zone_index < extra else 0)
-        zone_spaces = spaces[cursor : cursor + size]
-        cursor += size
-
+    for zone_definition in ZONE_DEFINITIONS:
+        zone_id = zone_definition["id"]
+        capacity = int(zone_definition["capacity"])
+        latest_analysis = latest_by_zone.get(zone_id, {})
+        analysis_available = latest_analysis.get("analysis_mode") == "yolo"
+        mapping = latest_analysis.get("slot_mapping") or {}
+        mapped_by_code = {space["code"]: space for space in mapping.get("spaces", [])}
+        detected_occupied = min(
+            max(int(latest_analysis.get("espacios_ocupados") or 0), 0),
+            capacity,
+        ) if analysis_available else 0
+        zone_reports = {
+            code: report
+            for code, report in reports.items()
+            if code.startswith(f"{zone_id}-")
+        }
+        confirmed_manual_count = len(zone_reports)
+        estimated_occupied = (
+            min(max(detected_occupied, confirmed_manual_count), capacity)
+            if analysis_available
+            else None
+        )
         mapped_spaces = []
-        free_count = 0
-        occupied_count = 0
 
-        for local_index, space in enumerate(zone_spaces, start=1):
-            manual_report = reports.get(space["code"])
-            status = "occupied" if space.get("occupied") else "free"
+        for local_index in range(1, capacity + 1):
+            space_code = f"{zone_id}-{local_index:03d}"
+            manual_report = zone_reports.get(space_code)
+            detected_space = mapped_by_code.get(space_code, {})
+            status = detected_space.get("status", "unknown")
             confirmation_required = False
             estimated_hours = None
             user_confirmed_at = None
@@ -111,28 +145,27 @@ def _build_zone_payload(spaces: list[dict], reports: dict) -> list[dict]:
                 status = "user_occupied"
                 estimated_hours = manual_report.get("estimated_hours")
                 user_confirmed_at = manual_report.get("started_at")
-                reported_user_id = manual_report.get("user_id")
-                reported_user_name = manual_report.get("user_name")
+                owns_report = manual_report.get("user_id") == viewer_id
+                if include_all_user_details or owns_report:
+                    reported_user_id = manual_report.get("user_id")
+                    reported_user_name = manual_report.get("user_name")
                 expires_at = manual_report.get("expires_at")
-                if expires_at:
+                confirmation_due_at = manual_report.get("confirmation_due_at") or expires_at
+                if confirmation_due_at:
                     try:
                         confirmation_required = (
-                            datetime.fromisoformat(expires_at) <= datetime.utcnow()
+                            datetime.fromisoformat(confirmation_due_at) <= datetime.utcnow()
                         )
                     except ValueError:
                         confirmation_required = False
 
-            if status == "free":
-                free_count += 1
-            else:
-                occupied_count += 1
-
             mapped_spaces.append(
                 {
-                    "code": space["code"],
-                    "display_code": f'{zone_definition["id"]}-{local_index:03d}',
+                    "code": space_code,
+                    "display_code": space_code,
                     "status": status,
-                    "source": "user_report" if manual_report else space.get("source"),
+                    "source": "user_report" if manual_report else detected_space.get("source", "aggregate_only"),
+                    "detected_status": detected_space.get("status", "unknown"),
                     "estimated_hours": estimated_hours,
                     "user_confirmed_at": user_confirmed_at,
                     "reported_user_id": reported_user_id,
@@ -142,22 +175,49 @@ def _build_zone_payload(spaces: list[dict], reports: dict) -> list[dict]:
                 }
             )
 
+        unknown_spaces = sum(space["status"] == "unknown" for space in mapped_spaces)
+        if mapped_by_code:
+            estimated_occupied = sum(space["status"] in {"occupied", "user_occupied"} for space in mapped_spaces)
+            detected_occupied = mapping["occupied_spaces"]
+        free_spaces = (
+            sum(space["status"] == "free" for space in mapped_spaces)
+            if mapped_by_code else capacity - estimated_occupied
+            if estimated_occupied is not None else None
+        )
         zones.append(
             {
                 **zone_definition,
                 "spaces": mapped_spaces,
-                "free_spaces": free_count,
-                "occupied_spaces": occupied_count,
+                "free_spaces": free_spaces,
+                "occupied_spaces": estimated_occupied,
+                "detected_occupied_spaces": (
+                    detected_occupied if analysis_available else None
+                ),
+                "manual_occupied_spaces": confirmed_manual_count,
                 "total_spaces": len(mapped_spaces),
+                "analysis_available": analysis_available,
+                "occupancy_is_estimate": analysis_available and not bool(mapped_by_code),
+                "location_assignment_available": bool(mapped_by_code),
+                "location_coverage_complete": unknown_spaces == 0,
+                "unknown_spaces": unknown_spaces,
+                "calibrated_spaces": mapping.get("calibrated_spaces", 0),
+                "unmatched_detections": mapping.get("unmatched_detections", 0),
+                "image_id": latest_analysis.get("id_imagen"),
+                "updated_at": latest_analysis.get("fecha_analisis"),
+                "occupancy_basis": (
+                    "polygon_map" if mapped_by_code else "aggregate_vehicle_detection"
+                    if analysis_available
+                    else "no_operational_analysis"
+                ),
             }
         )
 
     return zones
 
 
-def _build_zone_lookup(spaces: list[dict]) -> dict[str, dict]:
+def _build_zone_lookup() -> dict[str, dict]:
     lookup = {}
-    for zone in _build_zone_payload(spaces, {}):
+    for zone in _build_zone_payload({}, {}):
         for space in zone["spaces"]:
             lookup[space["code"]] = {
                 "zone_id": zone["id"],
@@ -167,30 +227,72 @@ def _build_zone_lookup(spaces: list[dict]) -> dict[str, dict]:
     return lookup
 
 
-def _append_event(payload: dict) -> None:
-    events = _load_events()
-    events.append(payload)
-    _save_events(events)
+def _build_event(payload: dict) -> EventoEspacioMovil:
+    return EventoEspacioMovil(
+        tipo_evento=payload["event_type"],
+        codigo_espacio=payload["space_code"],
+        codigo_zona=payload["zone_id"],
+        titulo_zona=payload["zone_title"],
+        id_usuario=payload.get("user_id"),
+        nombre_usuario=payload.get("user_name"),
+        horas_estimadas=payload.get("estimated_hours"),
+        fecha_inicio=payload.get("started_at"),
+        fecha_expiracion=payload.get("expires_at"),
+        fecha_confirmacion_requerida=payload.get("confirmation_due_at"),
+        fecha_evento=payload.get("occurred_at"),
+    )
 
 
-def get_mobile_parking_overview(db: Session) -> dict:
+def get_mobile_parking_overview(
+    db: Session,
+    *,
+    viewer_id: int | None = None,
+    include_all_user_details: bool = True,
+) -> dict:
     latest_analysis = _get_latest_analysis(db)
-    parking_spaces = get_latest_parking_spaces(db)
-    reports = _load_reports()
-    zones = _build_zone_payload(parking_spaces.get("spaces", []), reports)
+    reports = _load_reports(db)
+    zones = _build_zone_payload(
+        reports,
+        _get_latest_analysis_by_zone(db),
+        viewer_id=viewer_id,
+        include_all_user_details=include_all_user_details,
+    )
 
     total_spaces = sum(zone["total_spaces"] for zone in zones)
-    free_spaces = sum(zone["free_spaces"] for zone in zones)
-    occupied_spaces = sum(zone["occupied_spaces"] for zone in zones)
+    coverage_complete = all(
+        zone["analysis_available"] and (
+            not zone["location_assignment_available"] or zone["location_coverage_complete"]
+        ) for zone in zones
+    )
+    free_spaces = (
+        sum(zone["free_spaces"] for zone in zones)
+        if coverage_complete
+        else None
+    )
+    occupied_spaces = (
+        sum(zone["occupied_spaces"] for zone in zones)
+        if coverage_complete
+        else None
+    )
 
     return {
         "updated_at": (
             latest_analysis.fecha_analisis.isoformat()
-            if latest_analysis.fecha_analisis
+            if latest_analysis and latest_analysis.fecha_analisis
             else None
         ),
-        "source": parking_spaces.get("source"),
-        "analysis_mode": parking_spaces.get("analysis_mode"),
+        "source": (
+            "polygon_map" if all(zone["location_assignment_available"] for zone in zones)
+            else "mixed" if any(zone["location_assignment_available"] for zone in zones)
+            else "aggregate_vehicle_detection"
+        ),
+        "unknown_spaces": sum(zone["unknown_spaces"] for zone in zones),
+        "located_free_spaces": sum(s["status"] == "free" for zone in zones for s in zone["spaces"]),
+        "located_occupied_spaces": sum(s["status"] in {"occupied", "user_occupied"} for zone in zones for s in zone["spaces"]),
+        "location_coverage_complete": all(zone["location_coverage_complete"] for zone in zones),
+        "analysis_mode": "yolo" if coverage_complete else "partial",
+        "coverage_complete": coverage_complete,
+        "analyzed_zones": [zone["id"] for zone in zones if zone["analysis_available"]],
         "total_spaces": total_spaces,
         "free_spaces": free_spaces,
         "occupied_spaces": occupied_spaces,
@@ -205,39 +307,68 @@ def occupy_space_manually(
     user_id: int,
     user_name: str,
 ) -> dict:
-    reports = _load_reports()
-    parking_spaces = get_latest_parking_spaces(db)
-    zone_lookup = _build_zone_lookup(parking_spaces.get("spaces", []))
+    settings = get_mobile_settings(db)
+    if not settings["manual_occupy_enabled"]:
+        raise HTTPException(status_code=403, detail="La ocupación manual está deshabilitada.")
+    if estimated_hours > settings["max_estimated_hours"]:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "El tiempo estimado supera el máximo configurado de "
+                f"{settings['max_estimated_hours']} horas."
+            ),
+        )
+
+    space_code = space_code.strip().upper()
+    reports = _load_reports(db)
+    zone_lookup = _build_zone_lookup()
     zone_context = zone_lookup.get(space_code, {})
+    if not zone_context:
+        raise HTTPException(status_code=404, detail="Espacio no encontrado.")
+    if space_code in reports:
+        raise HTTPException(status_code=409, detail="El espacio ya está marcado como ocupado.")
+    if any(report.get("user_id") == user_id for report in reports.values()):
+        raise HTTPException(status_code=409, detail="El usuario ya tiene un espacio activo.")
     started_at = datetime.utcnow()
     expires_at = started_at + timedelta(hours=estimated_hours)
-    reports[space_code] = {
-        "status": "user_occupied",
-        "user_id": user_id,
-        "user_name": user_name,
-        "zone_id": zone_context.get("zone_id"),
-        "zone_title": zone_context.get("zone_title"),
-        "display_code": zone_context.get("display_code"),
-        "estimated_hours": estimated_hours,
-        "started_at": started_at.isoformat(),
-        "expires_at": expires_at.isoformat(),
-    }
-    _save_reports(reports)
-    _append_event(
+    confirmation_due_at = started_at + timedelta(
+        hours=settings["pending_confirmation_after_hours"]
+    )
+    report = ReporteEspacioMovil(
+        codigo_espacio=space_code,
+        id_usuario=user_id,
+        nombre_usuario=user_name,
+        codigo_zona=zone_context["zone_id"],
+        titulo_zona=zone_context["zone_title"],
+        horas_estimadas=estimated_hours,
+        fecha_inicio=started_at,
+        fecha_expiracion=expires_at,
+        fecha_confirmacion_requerida=confirmation_due_at,
+    )
+    event = _build_event(
         {
             "event_type": "occupy",
             "space_code": space_code,
-            "display_code": zone_context.get("display_code"),
-            "zone_id": zone_context.get("zone_id"),
-            "zone_title": zone_context.get("zone_title"),
+            "zone_id": zone_context["zone_id"],
+            "zone_title": zone_context["zone_title"],
             "user_id": user_id,
             "user_name": user_name,
             "estimated_hours": estimated_hours,
-            "started_at": started_at.isoformat(),
-            "expires_at": expires_at.isoformat(),
-            "occurred_at": started_at.isoformat(),
+            "started_at": started_at,
+            "expires_at": expires_at,
+            "confirmation_due_at": confirmation_due_at,
+            "occurred_at": started_at,
         }
     )
+    db.add_all([report, event])
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="El espacio fue ocupado por otro usuario.",
+        ) from exc
     return {
         "code": space_code,
         "status": "user_occupied",
@@ -249,44 +380,59 @@ def occupy_space_manually(
         "user_name": user_name,
         "started_at": started_at.isoformat(),
         "expires_at": expires_at.isoformat(),
+        "confirmation_due_at": confirmation_due_at.isoformat(),
     }
 
 
-def release_space_manually(db: Session, space_code: str) -> dict:
-    reports = _load_reports()
-    existing_report = reports.pop(space_code, None)
-    _save_reports(reports)
-    parking_spaces = get_latest_parking_spaces(db)
-    zone_lookup = _build_zone_lookup(parking_spaces.get("spaces", []))
+def release_space_manually(
+    db: Session,
+    space_code: str,
+    requesting_user_id: int,
+    requesting_user_is_admin: bool = False,
+) -> dict:
+    settings = get_mobile_settings(db)
+    if not settings["manual_release_enabled"]:
+        raise HTTPException(status_code=403, detail="La liberación manual está deshabilitada.")
+
+    space_code = space_code.strip().upper()
+    zone_lookup = _build_zone_lookup()
     zone_context = zone_lookup.get(space_code, {})
-    occurred_at = datetime.utcnow().isoformat()
-    _append_event(
-        {
-            "event_type": "release",
-            "space_code": space_code,
-            "display_code": (
-                existing_report.get("display_code")
-                if existing_report
-                else zone_context.get("display_code")
-            ),
-            "zone_id": (
-                existing_report.get("zone_id")
-                if existing_report
-                else zone_context.get("zone_id")
-            ),
-            "zone_title": (
-                existing_report.get("zone_title")
-                if existing_report
-                else zone_context.get("zone_title")
-            ),
-            "user_id": existing_report.get("user_id") if existing_report else None,
-            "user_name": existing_report.get("user_name") if existing_report else None,
-            "estimated_hours": (
-                existing_report.get("estimated_hours") if existing_report else None
-            ),
-            "started_at": existing_report.get("started_at") if existing_report else None,
-            "expires_at": existing_report.get("expires_at") if existing_report else None,
-            "occurred_at": occurred_at,
-        }
+    if not zone_context:
+        raise HTTPException(status_code=404, detail="Espacio no encontrado.")
+
+    existing_row = db.query(ReporteEspacioMovil).filter_by(
+        codigo_espacio=space_code
+    ).first()
+    existing_report = _serialize_report(existing_row) if existing_row else None
+    if not existing_report:
+        raise HTTPException(status_code=409, detail="El espacio no tiene una ocupación manual activa.")
+    if (
+        existing_report.get("user_id") != requesting_user_id
+        and not requesting_user_is_admin
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el usuario que ocupó el espacio o un administrador puede liberarlo.",
+        )
+
+    occurred_at = datetime.utcnow()
+    db.add(
+        _build_event(
+            {
+                "event_type": "release",
+                "space_code": space_code,
+                "zone_id": existing_row.codigo_zona,
+                "zone_title": existing_row.titulo_zona,
+                "user_id": existing_row.id_usuario,
+                "user_name": existing_row.nombre_usuario,
+                "estimated_hours": existing_row.horas_estimadas,
+                "started_at": existing_row.fecha_inicio,
+                "expires_at": existing_row.fecha_expiracion,
+                "confirmation_due_at": existing_row.fecha_confirmacion_requerida,
+                "occurred_at": occurred_at,
+            }
+        )
     )
+    db.delete(existing_row)
+    db.commit()
     return {"code": space_code, "status": "free"}

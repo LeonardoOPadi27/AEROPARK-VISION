@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import sys
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -11,6 +12,7 @@ from app.models.espacio import Espacio
 from app.models.estacionamiento import Estacionamiento
 from app.models.rol import Rol
 from app.models.usuario import Usuario
+from app.services.parking_zone_config import ZONE_DEFINITIONS
 
 
 def get_or_create(db, model, defaults=None, **filters):
@@ -26,6 +28,13 @@ def get_or_create(db, model, defaults=None, **filters):
 
 
 def seed() -> None:
+    admin_email = os.getenv("SEED_ADMIN_EMAIL", "alexis@test.com").strip()
+    admin_password = os.getenv("SEED_ADMIN_PASSWORD", "").strip()
+    if not admin_password:
+        if os.getenv("ENVIRONMENT", "development").lower() == "production":
+            raise RuntimeError("SEED_ADMIN_PASSWORD debe configurarse en producción.")
+        admin_password = "123456"
+
     db = SessionLocal()
     try:
         admin_role = get_or_create(
@@ -44,11 +53,11 @@ def seed() -> None:
         user = get_or_create(
             db,
             Usuario,
-            correo="alexis@test.com",
+            correo=admin_email,
             defaults={
                 "nombres": "Alexis",
                 "apellidos": "Test",
-                "contrasena": hash_password("123456"),
+                "contrasena": hash_password(admin_password),
                 "id_rol": admin_role.id_rol,
             },
         )
@@ -74,17 +83,33 @@ def seed() -> None:
             },
         )
 
-        for index in range(1, 36):
-            get_or_create(
-                db,
-                Espacio,
-                id_estacionamiento=parking.id_estacionamiento,
-                codigo=f"E-{index:03d}",
-                defaults={"fila": "A", "columna": index},
-            )
+        active_codes = []
+        for zone in ZONE_DEFINITIONS:
+            for index in range(1, int(zone["capacity"]) + 1):
+                code = f"{zone['id']}-{index:03d}"
+                active_codes.append(code)
+                space = get_or_create(
+                    db,
+                    Espacio,
+                    id_estacionamiento=parking.id_estacionamiento,
+                    codigo=code,
+                    defaults={
+                        "fila": zone["id"],
+                        "columna": index,
+                        "estado_ocupado": False,
+                    },
+                )
+                space.fila = zone["id"]
+                space.columna = index
+                space.estado = True
+
+        db.query(Espacio).filter(
+            Espacio.id_estacionamiento == parking.id_estacionamiento,
+            ~Espacio.codigo.in_(active_codes),
+        ).update({"estado": False}, synchronize_session=False)
 
         db.commit()
-        print("Seed completado. Usuario: alexis@test.com / 123456")
+        print(f"Seed completado. Usuario administrador: {admin_email}")
     except Exception:
         db.rollback()
         raise

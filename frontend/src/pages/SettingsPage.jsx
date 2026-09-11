@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BellRing,
   RefreshCw,
@@ -59,11 +59,9 @@ export default function SettingsPage({ onLogout }) {
     };
   }, []);
 
-  const hasChanges = useMemo(() => {
-    if (!settings?.mobile) return false;
-    const current = toFormState(settings.mobile);
-    return JSON.stringify(current) !== JSON.stringify(form);
-  }, [form, settings?.mobile]);
+  const hasChanges = settings?.mobile
+    ? JSON.stringify(toFormState(settings.mobile)) !== JSON.stringify(form)
+    : false;
 
   const handleToggle = (key) => {
     setForm((current) => ({

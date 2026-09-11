@@ -78,7 +78,7 @@ export default function VehicleColorsPage({ onLogout }) {
   }, []);
 
   const activeSummary = scope === "latest" ? latestSummary : summary;
-  const colors = activeSummary?.colors ?? [];
+  const colors = useMemo(() => activeSummary?.colors ?? [], [activeSummary?.colors]);
   const maxCount = useMemo(
     () => Math.max(...colors.map((item) => item.count), 1),
     [colors],

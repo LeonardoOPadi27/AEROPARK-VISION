@@ -20,6 +20,8 @@ class ImagenCapturada(Base):
     ruta_archivo = Column(String, nullable=False)
     tipo_contenido = Column(String)
     estado = Column(String, default="subida")
+    codigo_zona = Column(String, nullable=True)
+    titulo_zona = Column(String, nullable=True)
     fecha_captura = Column(DateTime, nullable=True)
     fecha_subida = Column(DateTime, server_default=func.now())
 

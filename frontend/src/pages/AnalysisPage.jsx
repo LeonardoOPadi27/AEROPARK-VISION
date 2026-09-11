@@ -92,7 +92,7 @@ export default function AnalysisPage({ onLogout }) {
               }`}
             >
               <Cpu className="h-4 w-4" />
-              {yoloStatus?.ready ? "YOLO activo" : "Modo mock"}
+              {yoloStatus?.ready ? "YOLO activo" : "YOLO no disponible"}
             </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -153,7 +153,7 @@ export default function AnalysisPage({ onLogout }) {
                   <span>Imagen</span>
                   <span>Vehículos</span>
                   <span>Ocupación</span>
-                  <span>Precisión</span>
+                  <span>Confianza media</span>
                   <span>Modo</span>
                   <span>Acción</span>
                 </div>

@@ -1,6 +1,8 @@
+import os
+
 from fastapi import HTTPException
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.models.analisis import AnalisisImagen
 from app.models.imagen import ImagenCapturada
@@ -13,6 +15,8 @@ from app.services.detection_service import (
     resolve_stored_image_path,
 )
 from app.services.image_zone_service import get_image_zone
+from app.services.parking_zone_config import get_zone_capacity
+from app.services.space_calibration_service import load_calibration, assign_detections
 
 
 def build_mock_analysis_values(image_id: int) -> dict:
@@ -33,9 +37,16 @@ def build_mock_analysis_values(image_id: int) -> dict:
     }
 
 
+def mock_analysis_enabled() -> bool:
+    return os.getenv("ALLOW_MOCK_ANALYSIS", "false").strip().lower() == "true"
+
+
 def serialize_analysis(analysis: AnalisisImagen) -> dict:
     image = analysis.imagen
-    zone_metadata = get_image_zone(image.id_imagen if image else None)
+    zone_metadata = get_image_zone(image)
+    zone_capacity = get_zone_capacity(
+        zone_metadata.get("zone_code") if zone_metadata else None
+    )
     analysis_mode = "yolo" if analysis.estado == "completado_yolo" else "mock"
     color_counts: dict[str, int] = {}
     type_counts: dict[str, int] = {}
@@ -52,18 +63,36 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
     total_vehiculos = sum(type_counts.values()) or analysis.vehiculos_detectados
     if not type_counts and analysis.estado == "completado_mock":
         autos_detectados = analysis.vehiculos_detectados
+    espacios_ocupados = analysis.espacios_ocupados
+    espacios_libres = analysis.espacios_libres
+    porcentaje_ocupacion = analysis.porcentaje_ocupacion
 
-    return {
+    if zone_capacity:
+        espacios_ocupados = min(analysis.espacios_ocupados or 0, zone_capacity)
+        espacios_libres = max(zone_capacity - espacios_ocupados, 0)
+        porcentaje_ocupacion = (
+            round((espacios_ocupados / zone_capacity) * 100, 1)
+            if zone_capacity
+            else 0
+        )
+
+    result = {
         "id_analisis": analysis.id_analisis,
         "id_imagen": analysis.id_imagen,
         "vehiculos_detectados": analysis.vehiculos_detectados,
         "autos_detectados": autos_detectados,
         "motocicletas_detectadas": motocicletas_detectadas,
         "total_vehiculos": total_vehiculos,
-        "espacios_libres": analysis.espacios_libres,
-        "espacios_ocupados": analysis.espacios_ocupados,
-        "porcentaje_ocupacion": analysis.porcentaje_ocupacion,
+        "espacios_libres": espacios_libres,
+        "espacios_ocupados": espacios_ocupados,
+        "porcentaje_ocupacion": porcentaje_ocupacion,
         "precision_modelo": analysis.precision_modelo,
+        "confidence_mean": analysis.precision_modelo,
+        "quality_metric": (
+            "mean_detection_confidence"
+            if analysis_mode == "yolo"
+            else "simulated_value"
+        ),
         "estado": analysis.estado,
         "analysis_mode": analysis_mode,
         "fecha_analisis": (
@@ -96,6 +125,13 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
             )
         ],
     }
+    db = object_session(analysis)
+    calibration = load_calibration(db, analysis.id_imagen) if db is not None else None
+    if calibration and analysis_mode == "yolo" and calibration["zone_code"] == result["zone_code"]:
+        # Old aggregate-only records cannot establish empty individual spaces.
+        if len(vehicles) == (analysis.vehiculos_detectados or 0):
+            result["slot_mapping"] = assign_detections(calibration, result["detections"])
+    return result
 
 
 def _get_analysis_vehicles(analysis: AnalisisImagen) -> list[VehiculoDetectado]:
@@ -113,6 +149,24 @@ def _build_analysis_values(image: ImagenCapturada, force_mock: bool = False) -> 
             detection_result = detect_vehicles_with_yolo(
                 resolve_stored_image_path(image.ruta_archivo)
             )
+            zone_metadata = get_image_zone(image)
+            zone_capacity = get_zone_capacity(
+                zone_metadata.get("zone_code") if zone_metadata else None
+            )
+            if zone_capacity:
+                occupied_spaces = min(
+                    detection_result["vehiculos_detectados"],
+                    zone_capacity,
+                )
+                detection_result["espacios_ocupados"] = occupied_spaces
+                detection_result["espacios_libres"] = max(
+                    zone_capacity - occupied_spaces,
+                    0,
+                )
+                detection_result["porcentaje_ocupacion"] = round(
+                    (occupied_spaces / zone_capacity) * 100,
+                    1,
+                )
             return {
                 "vehiculos_detectados": detection_result["vehiculos_detectados"],
                 "espacios_libres": detection_result["espacios_libres"],
@@ -122,9 +176,17 @@ def _build_analysis_values(image: ImagenCapturada, force_mock: bool = False) -> 
                 "estado": "completado_yolo",
                 "detections": detection_result.get("detections", []),
             }
-        except DetectionUnavailableError:
-            pass
+        except DetectionUnavailableError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"El modelo YOLO no está disponible: {exc}",
+            ) from exc
 
+    if not mock_analysis_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="El análisis simulado está deshabilitado.",
+        )
     return build_mock_analysis_values(image.id_imagen)
 
 
@@ -151,27 +213,6 @@ def _persist_analysis_details(db: Session, analysis: AnalisisImagen, values: dic
                 y2=y2,
             )
         )
-
-    for index in range(values.get("espacios_ocupados", 0)):
-        db.add(
-            OcupacionEspacio(
-                id_analisis=analysis.id_analisis,
-                codigo_espacio=f"O-{index + 1:03d}",
-                ocupado=True,
-                fuente=values.get("estado", "estimado_yolo"),
-            )
-        )
-
-    for index in range(values.get("espacios_libres", 0)):
-        db.add(
-            OcupacionEspacio(
-                id_analisis=analysis.id_analisis,
-                codigo_espacio=f"L-{index + 1:03d}",
-                ocupado=False,
-                fuente=values.get("estado", "estimado_yolo"),
-            )
-        )
-
 
 def ensure_analysis_for_image(
     db: Session,
@@ -201,35 +242,21 @@ def ensure_analysis_for_image(
 
 def get_analysis_list(db: Session) -> list[dict]:
     images = db.query(ImagenCapturada).order_by(ImagenCapturada.id_imagen.desc()).all()
-    created = False
-
-    for image in images:
-        if not image.analisis:
-            ensure_analysis_for_image(db, image)
-            created = True
-
-    if created:
-        db.commit()
-        for image in images:
-            db.refresh(image)
-
     return [serialize_analysis(image.analisis) for image in images if image.analisis]
 
 
 def get_latest_analysis(db: Session) -> dict:
-    image = (
-        db.query(ImagenCapturada).order_by(ImagenCapturada.id_imagen.desc()).first()
+    analysis = (
+        db.query(AnalisisImagen)
+        .join(ImagenCapturada)
+        .order_by(ImagenCapturada.id_imagen.desc())
+        .first()
     )
 
-    if not image:
+    if not analysis:
         raise HTTPException(status_code=404, detail="No hay análisis registrados.")
 
-    if not image.analisis:
-        ensure_analysis_for_image(db, image)
-        db.commit()
-        db.refresh(image)
-
-    return serialize_analysis(image.analisis)
+    return serialize_analysis(analysis)
 
 
 def run_mock_analysis_for_image(db: Session, image_id: int) -> dict:

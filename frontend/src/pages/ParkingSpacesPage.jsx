@@ -8,8 +8,10 @@ import {
   RefreshCw,
   Smartphone,
   X,
+  ScanLine,
 } from "lucide-react";
 import PageScaffold from "../components/PageScaffold";
+import SpaceCalibrationEditor from "../components/SpaceCalibrationEditor";
 import { getMobileParkingOverview } from "../services/api";
 
 const formatDateTime = (value) => {
@@ -35,6 +37,10 @@ const getSpaceClasses = (space) => {
     return "border-red-300/70 bg-red-500/72 text-white";
   }
 
+  if (space.status === "unknown") {
+    return "border-white/25 bg-white/15 text-white";
+  }
+
   return "border-emerald-200/70 bg-emerald-400/72 text-black";
 };
 
@@ -49,6 +55,10 @@ const getSpaceStatusLabel = (space) => {
 
   if (space.status === "occupied") {
     return "Ocupado por analisis";
+  }
+
+  if (space.status === "unknown") {
+    return "Ubicacion no confirmada";
   }
 
   return "Libre";
@@ -252,6 +262,7 @@ export default function ParkingSpacesPage({ onLogout }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedZoneId, setExpandedZoneId] = useState(null);
+  const [calibrationZoneId, setCalibrationZoneId] = useState(null);
   const physicalMapScrollRef = useRef(null);
 
   useEffect(() => {
@@ -279,9 +290,11 @@ export default function ParkingSpacesPage({ onLogout }) {
     };
 
     loadSpaces();
+    const timer = window.setInterval(loadSpaces, 60000);
 
     return () => {
       isMounted = false;
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -327,7 +340,8 @@ export default function ParkingSpacesPage({ onLogout }) {
     };
   }, [expandedZoneId]);
 
-  const zones = data?.zones ?? [];
+  const zones = useMemo(() => data?.zones ?? [], [data?.zones]);
+  const hasLocatedSpaces = zones.some((zone) => zone.location_assignment_available);
   const expandedZone = zones.find((zone) => zone.id === expandedZoneId);
   const expandedZoneModal =
     expandedZone && typeof document !== "undefined"
@@ -361,8 +375,9 @@ export default function ParkingSpacesPage({ onLogout }) {
               </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5">
                 <div className="mb-4 flex shrink-0 flex-wrap items-center justify-center gap-x-7 gap-y-3 rounded-[22px] border border-white/10 bg-black/35 px-4 py-4 text-xs font-bold text-white/62">
-                  <StatusPill label="Libre" className="border-emerald-300/70 bg-emerald-400/18" />
-                  <StatusPill label="Ocupado por analisis" className="border-red-300/70 bg-red-500/20" />
+                  <StatusPill label="Ubicacion no confirmada" className="border-white/30 bg-white/15" />
+                  <StatusPill label="Libre segun foto" className="border-emerald-200/70 bg-emerald-400/72" />
+                  <StatusPill label="Ocupado segun foto" className="border-red-300/70 bg-red-500/72" />
                   <StatusPill label="Marcado desde app" className="border-sky-300/75 bg-sky-400/20" />
                   <StatusPill label="Pendiente de confirmar" className="border-amber-300/75 bg-amber-400/20" />
                 </div>
@@ -392,7 +407,7 @@ export default function ParkingSpacesPage({ onLogout }) {
   return (
     <PageScaffold
       title="Espacios libres"
-      description="Vista conectada a las zonas A y B de Tecsup, sincronizada con las marcas manuales reportadas desde la app mobile."
+      description="Disponibilidad segun la ultima imagen de cada zona y reportes de usuarios."
       module="parking"
       onLogout={onLogout}
     >
@@ -400,14 +415,14 @@ export default function ParkingSpacesPage({ onLogout }) {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
             icon={ParkingCircle}
-            label="Libres"
-            value={data?.free_spaces ?? 0}
-            detail="Disponibles entre A y B"
+            label={hasLocatedSpaces ? "Libres ubicados" : "Libres estimados"}
+            value={(hasLocatedSpaces ? data.located_free_spaces : data?.free_spaces) ?? "--"}
+            detail={data?.coverage_complete ? "Ultimas imagenes de A y B" : `${data?.unknown_spaces ?? 119} sin confirmar`}
           />
           <SummaryCard
             icon={Car}
-            label="Ocupados"
-            value={data?.occupied_spaces ?? 0}
+            label={hasLocatedSpaces ? "Ocupados ubicados" : "Ocupados estimados"}
+            value={(hasLocatedSpaces ? data.located_occupied_spaces : data?.occupied_spaces) ?? "--"}
             detail={`de ${data?.total_spaces ?? 0} espacios`}
           />
           <SummaryCard
@@ -447,12 +462,13 @@ export default function ParkingSpacesPage({ onLogout }) {
                     Leyenda
                   </p>
                   <h2 className="mt-1 text-lg font-black">
-                    Estado por analisis y por app mobile
+                    Estado por espacio
                   </h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-white/60">
-                  <LegendDot className="border-white/20 bg-white/[.08]" label="Libre" />
-                  <LegendDot className="border-red-300/35 bg-red-400/20" label="Ocupado por analisis" />
+                  <LegendDot className="border-white/25 bg-white/15" label="Ubicacion no confirmada" />
+                  <LegendDot className="border-emerald-200/70 bg-emerald-400/72" label="Libre segun foto" />
+                  <LegendDot className="border-red-300/70 bg-red-500/72" label="Ocupado segun foto" />
                   <LegendDot className="border-sky-300/40 bg-sky-400/18" label="Marcado desde app" />
                   <LegendDot className="border-amber-300/40 bg-amber-400/18" label="Pendiente de confirmar" />
                 </div>
@@ -483,6 +499,11 @@ export default function ParkingSpacesPage({ onLogout }) {
                         </p>
                         <ZoneCapacityBreakdown zone={zone} />
                       </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-white/60">{zone.calibrated_spaces ?? 0}/{zone.total_spaces} vinculados · {zone.unknown_spaces ?? zone.total_spaces} sin confirmar</p>
+                        <button type="button" onClick={() => setCalibrationZoneId(zone.id)} className="flex items-center gap-2 rounded-md border border-white/20 px-3 py-2 text-xs hover:bg-white/10"><ScanLine size={15} />Calibrar zona {zone.id}</button>
+                      </div>
+                      <p className="mt-2 text-xs text-white/50">Foto: {formatDateTime(zone.updated_at)}</p>
                     </div>
 
                     <div>
@@ -494,11 +515,15 @@ export default function ParkingSpacesPage({ onLogout }) {
                     </div>
 
                     <div className="mt-4 grid grid-cols-3 gap-2.5">
-                      <ZoneMetric label="Libres" value={zone.free_spaces} />
-                      <ZoneMetric label="Ocupados" value={zone.occupied_spaces} />
+                      <ZoneMetric label={zone.occupancy_is_estimate ? "Libres estimados" : "Libres segun foto"} value={zone.free_spaces ?? "--"} />
+                      <ZoneMetric label={zone.occupancy_is_estimate ? "Ocupados estimados" : "Ocupados ubicados"} value={zone.occupied_spaces ?? "--"} />
                       <ZoneMetric
                         label="% Ocupacion"
-                        value={`${zone.total_spaces ? Math.round((zone.occupied_spaces / zone.total_spaces) * 100) : 0}%`}
+                        value={
+                          zone.occupied_spaces === null || (zone.location_assignment_available && !zone.location_coverage_complete)
+                            ? "--"
+                            : `${zone.total_spaces ? Math.round((zone.occupied_spaces / zone.total_spaces) * 100) : 0}%`
+                        }
                       />
                     </div>
 
@@ -557,11 +582,17 @@ export default function ParkingSpacesPage({ onLogout }) {
       </div>
 
       {expandedZoneModal}
+      {calibrationZoneId && <SpaceCalibrationEditor
+        zone={zones.find((zone) => zone.id === calibrationZoneId)}
+        onClose={() => setCalibrationZoneId(null)}
+        onSaved={async () => setData(await getMobileParkingOverview())}
+        renderMap={(selectedCode, onSelectSpace) => <ParkingPhysicalMap zone={zones.find((zone) => zone.id === calibrationZoneId)} large selectedCode={selectedCode} onSelectSpace={onSelectSpace} />}
+      />}
     </PageScaffold>
   );
 }
 
-function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen }) {
+function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen, selectedCode, onSelectSpace }) {
   const isZoneA = zone.id === "A";
   const isZoneB = zone.id === "B";
   const zoneBCoordinateWidth = 1780;
@@ -584,7 +615,7 @@ function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen }) {
             existingSpace ?? {
               code: `${zone.id}-reference-${slot.slotNumber ?? index + 1}`,
               display_code: slotDisplayCode,
-              status: "free",
+              status: "unknown",
               source: "physical_reference",
               isReferenceOnly: true,
             }
@@ -646,7 +677,8 @@ function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen }) {
 
         <div className="absolute inset-0">
           {visualSpaces.map((space, index) => {
-            const slot = getPhysicalSlot(zone.id, index, visualSpaces.length);
+            const codeIndex = Number(space.code.split("-")[1]) - 1;
+            const slot = getPhysicalSlot(zone.id, Number.isFinite(codeIndex) ? codeIndex : index, visualSpaces.length);
             const tooltipBelow = slot.top < 14;
             const SlotTag = compact ? "span" : "button";
             return (
@@ -654,6 +686,8 @@ function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen }) {
                 key={space.code}
                 type={SlotTag === "button" ? "button" : undefined}
                 title={getSpaceTitle(space)}
+                aria-label={getSpaceTitle(space)}
+                onClick={() => onSelectSpace?.(space.code)}
                 className={`group/slot absolute grid place-items-center rounded-[6px] border text-center shadow-[0_2px_8px_rgba(0,0,0,.2)] transition-transform hover:z-20 hover:scale-110 ${getSpaceClasses(space)}`}
                 style={{
                   left: `${slot.left}%`,
@@ -661,6 +695,7 @@ function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen }) {
                   width: `${slot.width}%`,
                   height: `${slot.height}%`,
                   transform: `rotate(${slot.rotate}deg)`,
+                  outline: space.code === selectedCode ? "3px solid #fbbf24" : undefined,
                 }}
               >
                   <span
@@ -696,7 +731,9 @@ function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen }) {
             Plano {zone.id}
           </p>
           <p className="text-sm font-black text-white">
-            {zone.free_spaces} libres · {zone.occupied_spaces} ocupados
+            {zone.analysis_available
+              ? `${zone.free_spaces} libres · ${zone.occupied_spaces} ocupados${zone.occupancy_is_estimate ? " (estimados)" : ` · ${zone.unknown_spaces} sin confirmar`}`
+              : "Sin analisis operativo de esta zona"}
           </p>
         </div>
         )}

@@ -59,8 +59,8 @@ def _build_zone_metrics(analyses: list[dict], overview: dict) -> list[dict]:
                 "occupancy_percentage": round(
                     (zone["occupied_spaces"] / zone["total_spaces"]) * 100, 1
                 )
-                if zone["total_spaces"]
-                else 0,
+                if zone["total_spaces"] and zone["occupied_spaces"] is not None
+                else None,
                 "average_occupancy_percentage": _average(occupancy_values),
                 "last_review": overview.get("updated_at"),
             }
@@ -79,8 +79,10 @@ def _build_usage_metrics(events: list[dict], active_reports: dict) -> dict:
     overdue_count = 0
     now = datetime.utcnow()
     for report in active_reports.values():
-        expires_at = _parse_iso(report.get("expires_at"))
-        if expires_at and expires_at <= now:
+        confirmation_due_at = _parse_iso(
+            report.get("confirmation_due_at") or report.get("expires_at")
+        )
+        if confirmation_due_at and confirmation_due_at <= now:
             overdue_count += 1
 
     return {
@@ -104,8 +106,10 @@ def _build_consistency_metrics(analyses: list[dict], active_reports: dict) -> di
     now = datetime.utcnow()
     pending_confirmation = 0
     for report in active_reports.values():
-        expires_at = _parse_iso(report.get("expires_at"))
-        if expires_at and expires_at <= now:
+        confirmation_due_at = _parse_iso(
+            report.get("confirmation_due_at") or report.get("expires_at")
+        )
+        if confirmation_due_at and confirmation_due_at <= now:
             pending_confirmation += 1
 
     return {
@@ -159,10 +163,12 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
 
     now = datetime.utcnow()
     for index, event in enumerate(events):
-        expires_at = _parse_iso(event.get("expires_at"))
+        confirmation_due_at = _parse_iso(
+            event.get("confirmation_due_at") or event.get("expires_at")
+        )
         confirmation = "sin vencimiento"
-        if expires_at:
-            confirmation = "pendiente" if expires_at <= now else "al dia"
+        if confirmation_due_at:
+            confirmation = "pendiente" if confirmation_due_at <= now else "al dia"
 
         records.append(
             {
@@ -193,9 +199,11 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
 
     now = datetime.utcnow()
     for space_code, report in active_reports.items():
-        expires_at = _parse_iso(report.get("expires_at"))
+        confirmation_due_at = _parse_iso(
+            report.get("confirmation_due_at") or report.get("expires_at")
+        )
         confirmation = "al dia"
-        if expires_at and expires_at <= now:
+        if confirmation_due_at and confirmation_due_at <= now:
             confirmation = "pendiente"
 
         records.append(
@@ -226,28 +234,38 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
 
 def get_reports_overview(db: Session) -> dict:
     analyses = get_analysis_list(db)
+    operational_analyses = [
+        analysis for analysis in analyses if analysis.get("analysis_mode") == "yolo"
+    ]
     overview = get_mobile_parking_overview(db)
-    active_reports = get_active_mobile_reports()
-    events = get_mobile_space_events()
+    active_reports = get_active_mobile_reports(db)
+    events = get_mobile_space_events(db)
 
-    total_analyses = len(analyses)
-    occupancy_values = [float(item.get("porcentaje_ocupacion") or 0) for item in analyses]
-    free_values = [int(item.get("espacios_libres") or 0) for item in analyses]
-    occupied_values = [int(item.get("espacios_ocupados") or 0) for item in analyses]
+    total_analyses = len(operational_analyses)
+    occupancy_values = [
+        float(item.get("porcentaje_ocupacion") or 0) for item in operational_analyses
+    ]
+    free_values = [
+        int(item.get("espacios_libres") or 0) for item in operational_analyses
+    ]
+    occupied_values = [
+        int(item.get("espacios_ocupados") or 0) for item in operational_analyses
+    ]
 
     return {
         "generated_at": datetime.utcnow().isoformat(),
-        "range_label": _format_range_label(analyses),
+        "range_label": _format_range_label(operational_analyses),
         "summary": {
             "total_analyses": total_analyses,
+            "simulated_analyses_excluded": len(analyses) - total_analyses,
             "average_occupancy_percentage": _average(occupancy_values),
             "average_free_spaces": _average(free_values),
             "average_occupied_spaces": _average(occupied_values),
             "last_updated": overview.get("updated_at"),
         },
-        "zones": _build_zone_metrics(analyses, overview),
+        "zones": _build_zone_metrics(operational_analyses, overview),
         "mobile_usage": _build_usage_metrics(events, active_reports),
-        "consistency": _build_consistency_metrics(analyses, active_reports),
-        "chart_points": _build_chart_points(analyses),
+        "consistency": _build_consistency_metrics(operational_analyses, active_reports),
+        "chart_points": _build_chart_points(operational_analyses),
         "records": _build_records(analyses, events, active_reports),
     }

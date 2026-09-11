@@ -4,7 +4,6 @@ Se hizo una primera división del dataset para entrenamiento de YOLO usando nomb
 
 ## Train
 
-- `e1_0006.jpg` -> `estacionamiento_1_hangares`
 - `e2_0011.jpg` -> `estacionamiento_2_principal`
 - `e2_0013.jpg` -> `estacionamiento_2_principal`
 - `e2_0014.jpg` -> `estacionamiento_2_principal`
@@ -12,7 +11,6 @@ Se hizo una primera división del dataset para entrenamiento de YOLO usando nomb
 
 ## Val
 
-- `e1_0007.jpg` -> `estacionamiento_1_hangares`
 - `e2_0012.jpg` -> `estacionamiento_2_principal`
 
 ## Criterio usado
@@ -26,9 +24,7 @@ Se hizo una primera división del dataset para entrenamiento de YOLO usando nomb
 Etiquetar estas imágenes y crear los archivos:
 
 ```txt
-datasets/parking/labels/train/e1_0006.txt
 datasets/parking/labels/train/e2_0011.txt
 ...
-datasets/parking/labels/val/e1_0007.txt
 datasets/parking/labels/val/e2_0012.txt
 ```

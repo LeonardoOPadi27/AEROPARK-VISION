@@ -106,26 +106,25 @@ export default function ReportsPage({ onLogout }) {
     };
   }, []);
 
-  const zoneOptions = report?.zones ?? [];
+  const zoneOptions = useMemo(() => report?.zones ?? [], [report?.zones]);
 
-  const filteredRecords = useMemo(() => {
-    const rows = report?.records ?? [];
-    const now = Date.now();
+  const reportRows = report?.records ?? [];
+  const reportNow = report?.generated_at
+    ? new Date(report.generated_at).getTime()
+    : 0;
+  const filteredRecords = reportRows.filter((row) => {
+    const matchesZone =
+      zoneFilter === "all" || row.zone === zoneOptions.find((zone) => zone.id === zoneFilter)?.title;
+    const matchesSource = sourceFilter === "all" || row.source === sourceFilter;
 
-    return rows.filter((row) => {
-      const matchesZone =
-        zoneFilter === "all" || row.zone === zoneOptions.find((zone) => zone.id === zoneFilter)?.title;
-      const matchesSource = sourceFilter === "all" || row.source === sourceFilter;
+    const rowDate = row.timestamp ? new Date(row.timestamp).getTime() : 0;
+    const matchesDate =
+      dateFilter === "all" ||
+      (dateFilter === "today" && reportNow - rowDate <= 24 * 60 * 60 * 1000) ||
+      (dateFilter === "week" && reportNow - rowDate <= 7 * 24 * 60 * 60 * 1000);
 
-      const rowDate = row.timestamp ? new Date(row.timestamp).getTime() : 0;
-      const matchesDate =
-        dateFilter === "all" ||
-        (dateFilter === "today" && now - rowDate <= 24 * 60 * 60 * 1000) ||
-        (dateFilter === "week" && now - rowDate <= 7 * 24 * 60 * 60 * 1000);
-
-      return matchesZone && matchesSource && matchesDate;
-    });
-  }, [dateFilter, report?.records, sourceFilter, zoneFilter, zoneOptions]);
+    return matchesZone && matchesSource && matchesDate;
+  });
 
   const chartPoints = report?.chart_points ?? [];
   const chartMax = Math.max(...chartPoints.map((item) => item.occupancy_percentage), 1);
@@ -198,7 +197,7 @@ export default function ReportsPage({ onLogout }) {
               <SectionTitle
                 eyebrow="Zonas"
                 title="Reporte por estacionamiento"
-                description="Comparacion actual de disponibilidad entre las tres zonas de Tecsup."
+                description="Comparacion actual de disponibilidad entre las zonas A y B de Tecsup."
               />
               <div className="grid gap-3 md:grid-cols-3">
                 {report.zones.map((zone) => (

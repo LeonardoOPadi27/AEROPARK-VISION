@@ -1,11 +1,11 @@
 import json
 import os
-from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.config.database import DATABASE_URL
 from app.models.analisis import AnalisisImagen
+from app.models.configuracion_sistema import ConfiguracionSistema
 from app.models.imagen import ImagenCapturada
 from app.services.detection_service import (
     TRAINED_CLASS_NAMES,
@@ -14,9 +14,7 @@ from app.services.detection_service import (
     get_yolo_status,
 )
 from app.services.parking_map_service import get_parking_map_path, load_parking_map
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-SETTINGS_PATH = PROJECT_ROOT / "backend" / "data" / "system_settings.json"
+SETTINGS_KEY = "mobile"
 
 DEFAULT_SETTINGS = {
     "mobile": {
@@ -30,25 +28,29 @@ DEFAULT_SETTINGS = {
 }
 
 
-def _ensure_settings_file() -> None:
-    SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if not SETTINGS_PATH.exists():
-        SETTINGS_PATH.write_text(json.dumps(DEFAULT_SETTINGS, indent=2), encoding="utf-8")
-
-
-def _load_settings() -> dict:
-    _ensure_settings_file()
+def _load_settings(db: Session) -> dict:
+    row = db.query(ConfiguracionSistema).filter_by(clave=SETTINGS_KEY).first()
     try:
-        payload = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+        payload = json.loads(row.valor_json) if row else {}
+    except (TypeError, json.JSONDecodeError):
         payload = {}
 
     mobile_settings = {**DEFAULT_SETTINGS["mobile"], **payload.get("mobile", {})}
     return {"mobile": mobile_settings}
 
 
-def _save_settings(payload: dict) -> dict:
-    SETTINGS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+def get_mobile_settings(db: Session) -> dict:
+    return _load_settings(db)["mobile"]
+
+
+def _save_settings(db: Session, payload: dict) -> dict:
+    row = db.query(ConfiguracionSistema).filter_by(clave=SETTINGS_KEY).first()
+    serialized = json.dumps(payload, ensure_ascii=False)
+    if row:
+        row.valor_json = serialized
+    else:
+        db.add(ConfiguracionSistema(clave=SETTINGS_KEY, valor_json=serialized))
+    db.commit()
     return payload
 
 
@@ -84,7 +86,7 @@ def _get_latest_analysis_row(db: Session) -> AnalisisImagen | None:
 def get_settings_overview(db: Session) -> dict:
     yolo_status = get_yolo_status()
     map_payload = load_parking_map()
-    settings = _load_settings()
+    settings = _load_settings(db)
     latest_analysis = _get_latest_analysis_row(db)
     latest_analysis_mode = None
     latest_analysis_at = None
@@ -129,8 +131,8 @@ def get_settings_overview(db: Session) -> dict:
     }
 
 
-def update_mobile_settings(payload: dict) -> dict:
-    settings = _load_settings()
+def update_mobile_settings(db: Session, payload: dict) -> dict:
+    settings = _load_settings(db)
     current = settings["mobile"]
     zone_value = str(payload.get("default_zone", current["default_zone"])).strip().upper()
     if zone_value not in {"A", "B"}:
@@ -160,5 +162,5 @@ def update_mobile_settings(payload: dict) -> dict:
         ),
         "default_zone": zone_value,
     }
-    saved = _save_settings(settings)
+    saved = _save_settings(db, settings)
     return saved["mobile"]

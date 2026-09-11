@@ -80,4 +80,7 @@ export const spaceCatalog = {
   user_occupied: {
     label: "Ocupado por usuario",
   },
+  unknown: {
+    label: "Ubicacion no confirmada",
+  },
 };

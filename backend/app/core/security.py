@@ -22,6 +22,16 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 security_scheme = HTTPBearer()
 
+if (
+	os.getenv("ENVIRONMENT", "development").lower() == "production"
+	and (
+		not SECRET_KEY
+		or SECRET_KEY == "change_this_secret_in_production"
+		or len(SECRET_KEY) < 32
+	)
+):
+	raise RuntimeError("SECRET_KEY debe tener al menos 32 caracteres en producción.")
+
 
 def hash_password(password: str) -> str:
 	# bcrypt has a 72-byte input limit. Use bcrypt_sha256 which pre-hashes
@@ -79,10 +89,29 @@ def get_current_user(
 		)
 
 	user = db.query(Usuario).filter(Usuario.correo == correo).first()
-	if not user:
+	if not user or user.estado is not True:
 		raise HTTPException(
 			status_code=status.HTTP_401_UNAUTHORIZED,
-			detail="Usuario no encontrado",
+			detail="Usuario no encontrado o inactivo",
 		)
 
 	return user
+
+
+def is_admin(user: Usuario) -> bool:
+	role = user.rol
+	return bool(
+		role
+		and role.estado is not False
+		and role.nombre
+		and role.nombre.strip().lower() == "administrador"
+	)
+
+
+def require_admin(current_user: Usuario = Depends(get_current_user)) -> Usuario:
+	if not is_admin(current_user):
+		raise HTTPException(
+			status_code=status.HTTP_403_FORBIDDEN,
+			detail="Se requieren permisos de administrador",
+		)
+	return current_user

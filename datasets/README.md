@@ -1,5 +1,10 @@
 # Dataset base para YOLO
 
+El dataset activo contiene unicamente las zonas A y B.
+Las imagenes retiradas tambien se excluyen de sus etiquetas y vistas previas.
+Los pesos YOLO existentes provienen de un entrenamiento anterior; la limpieza
+del dataset no los reentrena ni actualiza sus metricas de validacion.
+
 Usa esta estructura para preparar el dataset del proyecto:
 
 ```txt

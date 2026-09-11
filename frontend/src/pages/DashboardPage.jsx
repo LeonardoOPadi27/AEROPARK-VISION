@@ -59,6 +59,8 @@ const formatDateTime = (value) => {
 };
 
 function MetricCard({ label, value, icon: Icon, suffix = "" }) {
+  const isNumeric = typeof value === "number" && Number.isFinite(value);
+
   return (
     <div className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -66,8 +68,12 @@ function MetricCard({ label, value, icon: Icon, suffix = "" }) {
         <Icon className="h-4 w-4 text-white/40" />
       </div>
       <p className="text-2xl font-semibold tabular-nums tracking-[-.02em]">
-        <CountUp from={0} to={Number(value) || 0} separator="," duration={2.4} />
-        {suffix}
+        {isNumeric ? (
+          <CountUp from={0} to={value} separator="," duration={2.4} />
+        ) : (
+          value
+        )}
+        {isNumeric ? suffix : ""}
       </p>
     </div>
   );
@@ -184,15 +190,19 @@ export default function DashboardPage({ onLogout }) {
     latestAnalysis?.total_vehiculos ??
     latestAnalysis?.vehiculos_detectados ??
     autosCount + motorcyclesCount;
-  const occupied =
-    parkingSummary?.occupied_spaces ?? latestAnalysis?.espacios_ocupados ?? 0;
-  const free = parkingSummary?.free_spaces ?? latestAnalysis?.espacios_libres ?? 0;
+  const hasCompleteParkingCoverage = parkingSummary?.coverage_complete === true;
+  const hasLocatedSpaces = parkingSummary?.zones?.some((zone) => zone.location_assignment_available) === true;
+  const hasParkingCounts = hasCompleteParkingCoverage || hasLocatedSpaces;
+  const occupied = hasLocatedSpaces ? parkingSummary.located_occupied_spaces : hasCompleteParkingCoverage
+    ? parkingSummary.occupied_spaces
+    : 0;
+  const free = hasLocatedSpaces ? parkingSummary.located_free_spaces : hasCompleteParkingCoverage ? parkingSummary.free_spaces : 0;
   const totalSpaces = parkingSummary?.total_spaces ?? occupied + free;
-  const occupancyPercent = parkingSummary
+  const occupancyPercent = hasParkingCounts
     ? totalSpaces
       ? Number(((occupied / totalSpaces) * 100).toFixed(1))
       : 0
-    : latestAnalysis?.porcentaje_ocupacion ?? 0;
+    : 0;
   const manualMarkedCount =
     parkingSummary?.zones?.reduce(
       (total, zone) =>
@@ -200,21 +210,27 @@ export default function DashboardPage({ onLogout }) {
         zone.spaces.filter((space) => space.status === "user_occupied").length,
       0,
     ) ?? 0;
-  const occupancySourceLabel =
-    parkingSummary?.source === "polygon_map"
+  const occupancySourceLabel = hasLocatedSpaces ? `Ultimas fotos · ${parkingSummary.unknown_spaces} espacios sin confirmar` : !hasCompleteParkingCoverage
+    ? "Cobertura incompleta de las zonas"
+    : parkingSummary?.source === "polygon_map"
       ? manualMarkedCount
         ? "Mapa por polígonos + app mobile"
         : "Mapa por polígonos"
       : manualMarkedCount
         ? "Estimación YOLO + app mobile"
         : "Estimación YOLO";
-  const occupancyData = [
+  const occupancyData = !hasParkingCounts ? [
+    { name: "Sin confirmar", value: 100, color: "#71717a" },
+  ] : [
     { name: "Ocupados", value: occupancyPercent, color: "var(--occupancy-occupied-dot)" },
     {
       name: "Libres",
-      value: Math.max(0, Number((100 - occupancyPercent).toFixed(1))),
+      value: totalSpaces ? Number((free / totalSpaces * 100).toFixed(1)) : 0,
       color: "var(--occupancy-free-dot)",
     },
+    ...(hasLocatedSpaces && parkingSummary.unknown_spaces > 0 ? [{
+      name: "Sin confirmar", value: Number((parkingSummary.unknown_spaces / totalSpaces * 100).toFixed(1)), color: "#71717a",
+    }] : []),
   ];
   const colorRows = latestAnalysis?.color_distribution ?? [];
   const maxColor = Math.max(...colorRows.map((item) => item.cantidad), 1);
@@ -231,11 +247,11 @@ export default function DashboardPage({ onLogout }) {
           <MetricCard label="Autos detectados" value={autosCount} icon={Car} />
           <MetricCard label="Motocicletas" value={motorcyclesCount} icon={Bike} />
           <MetricCard label="Total vehículos" value={totalVehicles} icon={TrendingUp} />
-          <MetricCard label="Espacios libres" value={free} icon={ParkingSquare} />
-          <MetricCard label="Espacios ocupados" value={occupied} icon={CheckCircle2} />
+          <MetricCard label={hasLocatedSpaces ? "Libres ubicados" : "Espacios libres estimados"} value={hasParkingCounts ? free : "--"} icon={ParkingSquare} />
+          <MetricCard label={hasLocatedSpaces ? "Ocupados ubicados" : "Espacios ocupados estimados"} value={hasParkingCounts ? occupied : "--"} icon={CheckCircle2} />
           <MetricCard
-            label="Precisión modelo"
-            value={latestAnalysis?.precision_modelo ?? 0}
+            label="Confianza media"
+            value={latestAnalysis?.confidence_mean ?? latestAnalysis?.precision_modelo ?? 0}
             suffix="%"
             icon={TrendingUp}
           />
@@ -286,8 +302,8 @@ export default function DashboardPage({ onLogout }) {
               </div>
             </div>
 
-            <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="min-h-[280px] min-w-0">
+              <ResponsiveContainer width="100%" height={280} minWidth={1} minHeight={1}>
                 <AreaChart
                   data={vehicleTrend}
                   margin={{ top: 10, right: 12, left: -24, bottom: 0 }}
@@ -348,8 +364,8 @@ export default function DashboardPage({ onLogout }) {
                   {occupancySourceLabel}
                 </p>
               </div>
-              <div className="occupancy-donut-3d relative mx-auto h-[210px] max-w-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="occupancy-donut-3d relative mx-auto min-h-[210px] min-w-[210px] max-w-[250px]">
+                <ResponsiveContainer width="100%" height={210} minWidth={1} minHeight={1}>
                   <PieChart>
                     <defs>
                       <linearGradient id="occupied3d" x1="0" y1="0" x2="1" y2="1">
@@ -405,7 +421,7 @@ export default function DashboardPage({ onLogout }) {
                       {occupancyData.map((entry, index) => (
                         <Cell
                           key={entry.name}
-                          fill={index === 0 ? "url(#occupied3d)" : "url(#free3d)"}
+                          fill={entry.name === "Sin confirmar" ? entry.color : index === 0 ? "url(#occupied3d)" : "url(#free3d)"}
                           stroke="none"
                         />
                       ))}
@@ -422,7 +438,9 @@ export default function DashboardPage({ onLogout }) {
                 {occupancyData.map((item) => (
                   <div key={item.name} className="rounded-2xl bg-white/[.03] p-3">
                     <p className="text-white/45">{item.name}</p>
-                    <p className="mt-1 font-semibold">{item.value}%</p>
+                    <p className="mt-1 font-semibold">
+                      {hasParkingCounts ? `${item.value}%` : "--"}
+                    </p>
                   </div>
                 ))}
               </div>

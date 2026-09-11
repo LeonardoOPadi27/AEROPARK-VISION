@@ -22,6 +22,7 @@ export default function SpaceActionSheet({
   const isBlockedByAnotherUser =
     space.status === "user_occupied" && !isOwnedByCurrentUser;
   const isSystemOccupied = space.status === "occupied";
+  const canReportOccupancy = ["free", "unknown"].includes(space.status);
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
@@ -30,13 +31,15 @@ export default function SpaceActionSheet({
         <GlassCard style={styles.sheet}>
           <View style={styles.handle} />
           <Text style={styles.code}>{space.display_code ?? space.code}</Text>
-          <Text style={styles.state}>{spaceCatalog[space.status].label}</Text>
+          <Text style={styles.state}>
+            {spaceCatalog[space.status]?.label ?? "Estado no disponible"}
+          </Text>
           <Text style={styles.description}>
             Marca manualmente que ya te estacionaste y define cuánto tiempo crees
             quedarte. Luego la app podrá recordarte confirmar la salida.
           </Text>
 
-          {space.status === "free" ? (
+          {canReportOccupancy ? (
             <>
               <Text style={styles.label}>Tiempo estimado</Text>
               <View style={styles.optionsRow}>

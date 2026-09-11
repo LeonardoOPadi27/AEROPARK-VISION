@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, is_admin
 from app.models.usuario import Usuario
 from app.services.mobile_parking_service import (
     get_mobile_parking_overview,
@@ -15,12 +15,19 @@ router = APIRouter(prefix="/mobile", tags=["Mobile"])
 
 
 class OccupySpaceRequest(BaseModel):
-    estimated_hours: int = Field(default=2, ge=1, le=12)
+    estimated_hours: int = Field(default=2, ge=1, le=24)
 
 
 @router.get("/parking-overview")
-def mobile_parking_overview(db: Session = Depends(get_db)):
-    return get_mobile_parking_overview(db)
+def mobile_parking_overview(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    return get_mobile_parking_overview(
+        db,
+        viewer_id=current_user.id_usuario,
+        include_all_user_details=is_admin(current_user),
+    )
 
 
 @router.post("/spaces/{space_code}/occupy")
@@ -45,4 +52,9 @@ def release_space(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    return release_space_manually(db, space_code)
+    return release_space_manually(
+        db,
+        space_code,
+        current_user.id_usuario,
+        is_admin(current_user),
+    )

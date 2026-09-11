@@ -1,19 +1,24 @@
+import os
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app.models.imagen import ImagenCapturada
 from app.services.analysis_service import ensure_analysis_for_image, serialize_analysis
 from app.services.image_zone_service import get_image_zone, save_image_zone
+from app.services.storage_service import delete_file, object_storage_enabled, upload_file
 
-UPLOAD_DIR = Path("uploads")
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+UPLOAD_DIR = BACKEND_ROOT / "uploads"
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 def _serialize_image(image: ImagenCapturada) -> dict:
-    zone_metadata = get_image_zone(image.id_imagen)
+    zone_metadata = get_image_zone(image)
     return {
         "id_imagen": image.id_imagen,
         "filename": image.nombre_archivo,
@@ -34,17 +39,46 @@ def save_uploaded_image(db: Session, file: UploadFile, zone_code: str | None = N
             detail="Formato no permitido. Usa JPG, PNG o WEBP.",
         )
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="El archivo no tiene nombre.")
 
-    original_name = Path(file.filename or "imagen").name
+    original_name = Path(file.filename).name
     extension = Path(original_name).suffix.lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise HTTPException(status_code=400, detail="La extensión de la imagen no es válida.")
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     stored_name = f"{uuid4().hex}{extension}"
     destination = UPLOAD_DIR / stored_name
+    object_key = f"images/{stored_name}"
+    stored_url = f"/uploads/{stored_name}"
 
     try:
         with destination.open("wb") as buffer:
+            bytes_written = 0
             while chunk := file.file.read(1024 * 1024):
+                bytes_written += len(chunk)
+                if bytes_written > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            "La imagen supera el límite de "
+                            f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
+                        ),
+                    )
                 buffer.write(chunk)
+
+        try:
+            with Image.open(destination) as image:
+                image.verify()
+        except (UnidentifiedImageError, OSError) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="El archivo no es una imagen válida.",
+            ) from exc
+
+        if object_storage_enabled():
+            stored_url = upload_file(destination, object_key, file.content_type)
 
         image = ImagenCapturada(
             nombre_archivo=stored_name,
@@ -55,16 +89,29 @@ def save_uploaded_image(db: Session, file: UploadFile, zone_code: str | None = N
         )
         db.add(image)
         db.flush()
-        save_image_zone(image.id_imagen, zone_code)
+        save_image_zone(image, zone_code)
 
         analysis = ensure_analysis_for_image(db, image)
+        image.ruta_archivo = stored_url
 
         db.commit()
         db.refresh(image)
+        if object_storage_enabled() and destination.exists():
+            try:
+                destination.unlink()
+            except OSError:
+                pass
     except Exception as exc:
         db.rollback()
         if destination.exists():
             destination.unlink()
+        if object_storage_enabled() and stored_url.startswith("http"):
+            try:
+                delete_file(object_key)
+            except Exception:
+                pass
+        if isinstance(exc, HTTPException):
+            raise
         raise HTTPException(
             status_code=500,
             detail="No se pudo guardar la imagen.",

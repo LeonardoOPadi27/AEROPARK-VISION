@@ -25,7 +25,7 @@ export default function HistoryScreen({ historyItems }) {
               {item.free} libres · {item.occupied} ocupados
             </Text>
             <Text style={styles.cardDetail}>
-              {item.vehicles} vehículos · {item.precision}% precisión
+              {item.vehicles} vehículos · {item.precision}% confianza media
             </Text>
           </GlassCard>
         ))}

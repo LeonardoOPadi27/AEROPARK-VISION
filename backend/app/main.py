@@ -1,10 +1,13 @@
 import os
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app import models  # noqa: F401
+from app.config.database import engine
 from app.routes import (
     analysis_routes,
     auth_routes,
@@ -16,7 +19,11 @@ from app.routes import (
     settings_routes,
 )
 
-app = FastAPI()
+is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
+app = FastAPI(
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+)
 
 
 def get_cors_origins() -> list[str]:
@@ -37,13 +44,23 @@ def get_cors_origins() -> list[str]:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(),
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origin_regex=(
+        None
+        if is_production
+        else r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+UPLOADS_DIR = os.getenv(
+    "UPLOADS_DIR",
+    str((os.path.dirname(__file__))) + "/../uploads",
+)
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+if not is_production or os.getenv("ALLOW_PUBLIC_LOCAL_UPLOADS", "false").lower() == "true":
+    app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 app.include_router(auth_routes.router)
 app.include_router(image_routes.router)
@@ -57,4 +74,12 @@ app.include_router(settings_routes.router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "database": "offline"},
+        )
+    return {"status": "ok", "database": "online"}

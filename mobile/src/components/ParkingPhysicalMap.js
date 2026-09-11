@@ -18,6 +18,10 @@ const statusStyles = {
     backgroundColor: "rgba(234,179,8,0.88)",
     borderColor: "rgba(253,224,71,0.78)",
   },
+  unknown: {
+    backgroundColor: "rgba(148,163,184,0.28)",
+    borderColor: "rgba(226,232,240,0.42)",
+  },
 };
 
 const makeFallbackSlot = (index, total) => {
@@ -204,7 +208,7 @@ const getPhysicalSpaces = (zone) => {
       existingSpace ?? {
         code: displayCode,
         display_code: displayCode,
-        status: "free",
+        status: "unknown",
       }
     );
   });
@@ -252,7 +256,7 @@ export default function ParkingPhysicalMap({ zone, onSelectSpace }) {
             {physicalSpaces.map((space, index) => {
               const slot = getPhysicalSlot(zone.id, index, physicalSpaces.length);
               const statusKey = getSpaceStatusKey(space);
-              const statusStyle = statusStyles[statusKey] ?? statusStyles.free;
+              const statusStyle = statusStyles[statusKey] ?? statusStyles.unknown;
 
               return (
                 <Pressable
@@ -281,8 +285,7 @@ export default function ParkingPhysicalMap({ zone, onSelectSpace }) {
       </ScrollView>
 
       <View style={styles.legend}>
-        <LegendDot color={statusStyles.free.backgroundColor} label="Libre" />
-        <LegendDot color={statusStyles.occupied.backgroundColor} label="Ocupado" />
+        <LegendDot color={statusStyles.unknown.backgroundColor} label="Sin ubicar" />
         <LegendDot color={statusStyles.user_occupied.backgroundColor} label="App" />
         <LegendDot color={statusStyles.pending.backgroundColor} label="Pendiente" />
       </View>

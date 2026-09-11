@@ -1,32 +1,7 @@
-import json
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-ZONE_METADATA_PATH = PROJECT_ROOT / "backend" / "data" / "image_zone_metadata.json"
-
 ZONE_LABELS = {
     "A": "Estacionamiento A",
     "B": "Estacionamiento B",
 }
-
-
-def _ensure_metadata_file() -> None:
-    ZONE_METADATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if not ZONE_METADATA_PATH.exists():
-        ZONE_METADATA_PATH.write_text("{}", encoding="utf-8")
-
-
-def _load_metadata() -> dict:
-    _ensure_metadata_file()
-    try:
-        return json.loads(ZONE_METADATA_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {}
-
-
-def _save_metadata(payload: dict) -> None:
-    _ensure_metadata_file()
-    ZONE_METADATA_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def normalize_zone_code(zone_code: str | None) -> str | None:
@@ -37,22 +12,25 @@ def normalize_zone_code(zone_code: str | None) -> str | None:
     return normalized if normalized in ZONE_LABELS else None
 
 
-def save_image_zone(image_id: int, zone_code: str | None) -> None:
+def save_image_zone(image, zone_code: str | None) -> None:
     normalized = normalize_zone_code(zone_code)
     if not normalized:
         return
 
-    metadata = _load_metadata()
-    metadata[str(image_id)] = {
-        "zone_code": normalized,
-        "zone_title": ZONE_LABELS[normalized],
-    }
-    _save_metadata(metadata)
+    image.codigo_zona = normalized
+    image.titulo_zona = ZONE_LABELS[normalized]
 
 
-def get_image_zone(image_id: int | None) -> dict | None:
+def get_image_zone(image) -> dict | None:
+    image_id = getattr(image, "id_imagen", image)
     if image_id is None:
         return None
 
-    metadata = _load_metadata()
-    return metadata.get(str(image_id))
+    zone_code = getattr(image, "codigo_zona", None)
+    if zone_code:
+        return {
+            "zone_code": zone_code,
+            "zone_title": getattr(image, "titulo_zona", None) or ZONE_LABELS.get(zone_code),
+        }
+
+    return None

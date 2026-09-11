@@ -110,6 +110,16 @@ export const getLatestParkingSpaces = async () => {
   return data;
 };
 
+export const getSpaceCalibration = async (imageId) => {
+  const { data } = await api.get(`/parking-spaces/calibration/${imageId}`);
+  return data;
+};
+
+export const saveSpaceCalibration = async (imageId, payload) => {
+  const { data } = await api.put(`/parking-spaces/calibration/${imageId}`, payload);
+  return data;
+};
+
 export const getMobileParkingOverview = async () => {
   const { data } = await api.get("/mobile/parking-overview");
   return data;

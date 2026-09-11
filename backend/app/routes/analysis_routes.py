@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.security import get_current_user, require_admin
+from app.models.usuario import Usuario
 from app.services.analysis_service import (
     get_analysis_list,
     get_detection_runtime_status,
@@ -14,25 +16,33 @@ router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
 
 @router.get("")
-def list_analysis(db: Session = Depends(get_db)):
+def list_analysis(db: Session = Depends(get_db), _: Usuario = Depends(get_current_user)):
     return get_analysis_list(db)
 
 
 @router.get("/latest")
-def latest_analysis(db: Session = Depends(get_db)):
+def latest_analysis(db: Session = Depends(get_db), _: Usuario = Depends(get_current_user)):
     return get_latest_analysis(db)
 
 
 @router.get("/yolo-status")
-def yolo_status():
+def yolo_status(_: Usuario = Depends(get_current_user)):
     return get_detection_runtime_status()
 
 
 @router.post("/images/{image_id}/run")
-def run_analysis(image_id: int, db: Session = Depends(get_db)):
+def run_analysis(
+    image_id: int,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_user),
+):
     return run_analysis_for_image(db, image_id)
 
 
 @router.post("/images/{image_id}/run-mock")
-def run_mock_analysis(image_id: int, db: Session = Depends(get_db)):
+def run_mock_analysis(
+    image_id: int,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
     return run_mock_analysis_for_image(db, image_id)

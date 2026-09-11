@@ -138,7 +138,10 @@ export default function Aurora({
     speed,
     lightMode,
   });
-  propsRef.current = { colorStops, amplitude, blend, time, speed, lightMode };
+
+  useEffect(() => {
+    propsRef.current = { colorStops, amplitude, blend, time, speed, lightMode };
+  }, [amplitude, blend, colorStops, lightMode, speed, time]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -165,11 +168,11 @@ export default function Aurora({
       fragment: FRAG,
       uniforms: {
         uTime: { value: 0 },
-        uAmplitude: { value: amplitude },
-        uColorStops: { value: toColorArray(colorStops) },
+        uAmplitude: { value: propsRef.current.amplitude },
+        uColorStops: { value: toColorArray(propsRef.current.colorStops) },
         uResolution: { value: [container.offsetWidth, container.offsetHeight] },
-        uBlend: { value: blend },
-        uLightMode: { value: lightMode ? 1 : 0 },
+        uBlend: { value: propsRef.current.blend },
+        uLightMode: { value: propsRef.current.lightMode ? 1 : 0 },
       },
     });
 
@@ -192,7 +195,7 @@ export default function Aurora({
       program.uniforms.uAmplitude.value = current.amplitude ?? 1;
       program.uniforms.uBlend.value = current.blend ?? 0.5;
       program.uniforms.uColorStops.value = toColorArray(
-        current.colorStops ?? colorStops,
+        current.colorStops ?? propsRef.current.colorStops,
       );
       program.uniforms.uLightMode.value = current.lightMode ? 1 : 0;
       renderer.render({ scene: mesh });

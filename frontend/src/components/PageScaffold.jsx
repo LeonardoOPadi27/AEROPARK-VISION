@@ -35,7 +35,6 @@ const withoutAccents = (text) =>
 export default function PageScaffold({
   title,
   description,
-  module = "analysis",
   children,
   onLogout,
 }) {

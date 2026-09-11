@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.schemas.usuario_schema import (
@@ -13,8 +15,19 @@ from app.models.usuario import Usuario
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
+allow_public_registration = os.getenv(
+    "ALLOW_PUBLIC_REGISTRATION",
+    "false" if is_production else "true",
+).lower() == "true"
+
 @router.post("/register", response_model=UsuarioResponse)
 def register(user: UsuarioCreate, db: Session = Depends(get_db)):
+    if not allow_public_registration:
+        raise HTTPException(
+            status_code=403,
+            detail="El registro público está deshabilitado.",
+        )
     return create_user(db, user)
 
 @router.post("/login")

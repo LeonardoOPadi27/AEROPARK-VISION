@@ -22,7 +22,7 @@ Primera version funcional del sistema:
 - Modulo IA preparado para deteccion YOLOv8 y clasificacion de color.
 - App mobile Expo orientada al usuario final.
 - Visualizacion fisica de Zona A y Zona B segun la distribucion real del estacionamiento.
-- Zona C retirada del flujo porque no cuenta con lineas fisicas claras de estacionamiento.
+- Zonas operativas: A y B.
 
 ## Arquitectura general
 
@@ -247,7 +247,6 @@ Documentacion:
 
 - El sistema depende de imagenes aereas capturadas bajo demanda, no de camaras en vivo.
 - La disponibilidad se actualiza a partir del ultimo analisis y de reportes manuales desde la app mobile.
-- Zona C fue retirada de la visualizacion principal porque no tiene espacios fisicos delimitados.
 - Para produccion se recomienda migrar almacenamiento de imagenes a cloud y usar un proveedor administrado de base de datos.
 
 ## Autor

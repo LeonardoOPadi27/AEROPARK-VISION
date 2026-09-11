@@ -1,0 +1,17 @@
+.git
+.gitignore
+.DS_Store
+**/.env
+**/.env.*
+!**/.env.example
+**/__pycache__
+**/*.pyc
+**/.venv
+backend/uploads
+backend/data/*.json
+frontend/node_modules
+frontend/dist
+mobile/node_modules
+datasets
+docs
+ai-model/results

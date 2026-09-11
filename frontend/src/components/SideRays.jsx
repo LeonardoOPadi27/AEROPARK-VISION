@@ -208,7 +208,7 @@ void main() {
         try {
           renderer.render({ scene: mesh });
           animationIdRef.current = requestAnimationFrame(loop);
-        } catch (_) {
+        } catch {
           // WebGL context can be lost during fast route/theme changes.
         }
       };
@@ -228,7 +228,7 @@ void main() {
           loseContext?.loseContext();
           const canvas = renderer.gl.canvas;
           canvas?.parentNode?.removeChild(canvas);
-        } catch (_) {
+        } catch {
           // Ignore cleanup failures from already-disposed canvases.
         }
         rendererRef.current = null;
