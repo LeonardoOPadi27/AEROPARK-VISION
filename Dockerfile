@@ -26,4 +26,4 @@ RUN mkdir -p /app/backend/uploads /app/backend/data
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "alembic upgrade head && if [ \"${RUN_PRODUCTION_SEED:-false}\" = \"true\" ]; then python scripts/seed_db.py; fi && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
