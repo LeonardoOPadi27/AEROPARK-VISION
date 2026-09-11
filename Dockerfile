@@ -20,6 +20,9 @@ RUN pip install --upgrade pip \
 
 COPY backend /app/backend
 COPY ai-model/config /app/ai-model/config
+# The trained model is small enough to ship with the service image. This keeps
+# inference available even when object-storage public URLs are unavailable.
+COPY ai-model/weights/best.pt /app/ai-model/weights/best.pt
 
 WORKDIR /app/backend
 RUN mkdir -p /app/backend/uploads /app/backend/data
