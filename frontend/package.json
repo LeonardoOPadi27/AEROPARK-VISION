@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:cloudflare": "VITE_API_BASE_URL=https://aeropark-api.onrender.com vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
