@@ -22,6 +22,7 @@ export default function AnalysisPage({ onLogout }) {
   const [runningImageId, setRunningImageId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const isProcessing = (row) => ["pendiente", "procesando"].includes(row.estado);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -57,7 +58,7 @@ export default function AnalysisPage({ onLogout }) {
   }, []);
 
   useEffect(() => {
-    if (!rows.some((row) => row.estado === "pendiente")) return undefined;
+    if (!rows.some(isProcessing)) return undefined;
 
     const intervalId = window.setInterval(loadData, 5000);
     return () => window.clearInterval(intervalId);
@@ -191,15 +192,15 @@ export default function AnalysisPage({ onLogout }) {
                           : "text-white/60"
                       }
                     >
-                      {row.estado === "pendiente" ? "procesando" : row.analysis_mode}
+                      {isProcessing(row) ? "procesando" : row.analysis_mode}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleRunAnalysis(row.id_imagen)}
-                      disabled={runningImageId === row.id_imagen || row.estado === "pendiente"}
+                      disabled={runningImageId === row.id_imagen || isProcessing(row)}
                       className="rounded-2xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-black text-white/80 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {row.estado === "pendiente"
+                      {isProcessing(row)
                         ? "Procesando..."
                         : runningImageId === row.id_imagen
                           ? "Ejecutando..."

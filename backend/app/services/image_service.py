@@ -140,6 +140,9 @@ def process_uploaded_image(
         if image is None:
             return
 
+        image.analisis.estado = "procesando"
+        db.commit()
+
         # The free deployment cannot safely run several PyTorch inferences at once.
         with ANALYSIS_LOCK:
             ensure_analysis_for_image(db, image, source_path=path)
