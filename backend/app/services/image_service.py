@@ -129,12 +129,12 @@ def save_uploaded_image(
 
 def process_uploaded_image(
     image_id: int,
-    source_path: str,
+    source_path: str | None,
     remove_source_after_processing: bool,
 ) -> None:
     """Run YOLO after the upload response has been returned to the client."""
     db = SessionLocal()
-    path = Path(source_path)
+    path = Path(source_path) if source_path else None
     try:
         image = db.query(ImagenCapturada).filter_by(id_imagen=image_id).first()
         if image is None:
@@ -152,7 +152,7 @@ def process_uploaded_image(
             db.commit()
     finally:
         db.close()
-        if remove_source_after_processing and path.exists():
+        if remove_source_after_processing and path and path.exists():
             try:
                 path.unlink()
             except OSError:
