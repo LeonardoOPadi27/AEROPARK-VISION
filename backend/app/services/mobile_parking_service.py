@@ -201,6 +201,7 @@ def _build_zone_payload(
                 "location_coverage_complete": unknown_spaces == 0,
                 "unknown_spaces": unknown_spaces,
                 "calibrated_spaces": mapping.get("calibrated_spaces", 0),
+                "mapping_source": mapping.get("source"),
                 "unmatched_detections": mapping.get("unmatched_detections", 0),
                 "image_id": latest_analysis.get("id_imagen"),
                 "updated_at": latest_analysis.get("fecha_analisis"),

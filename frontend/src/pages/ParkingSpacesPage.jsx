@@ -136,7 +136,6 @@ const ZONE_A_PHYSICAL_SLOTS = [
   { left: 68.1, top: 73.1, width: 8, height: 7, rotate: 49 },
   { left: 73, top: 71, width: 8, height: 7, rotate: 49 },
   { left: 77.9, top: 68.9, width: 8, height: 7, rotate: 49 },
-  { left: 82.8, top: 66.8, width: 8, height: 7, rotate: 49 },
 ];
 
 const ZONE_A_PHYSICAL_OFFSET_X = -4;
@@ -500,8 +499,11 @@ export default function ParkingSpacesPage({ onLogout }) {
                         <ZoneCapacityBreakdown zone={zone} />
                       </div>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-xs text-white/60">{zone.calibrated_spaces ?? 0}/{zone.total_spaces} vinculados · {zone.unknown_spaces ?? zone.total_spaces} sin confirmar</p>
-                        <button type="button" onClick={() => setCalibrationZoneId(zone.id)} className="flex items-center gap-2 rounded-md border border-white/20 px-3 py-2 text-xs hover:bg-white/10"><ScanLine size={15} />Calibrar zona {zone.id}</button>
+                        <p className="text-xs text-white/60">
+                          {zone.calibrated_spaces ?? 0}/{zone.total_spaces} ubicados · {zone.unknown_spaces ?? zone.total_spaces} sin confirmar
+                          {zone.mapping_source === "zone_template" ? " · plantilla automatica" : ""}
+                        </p>
+                        <button type="button" onClick={() => setCalibrationZoneId(zone.id)} className="flex items-center gap-2 rounded-md border border-white/20 px-3 py-2 text-xs hover:bg-white/10"><ScanLine size={15} />Ajustar plano {zone.id}</button>
                       </div>
                       <p className="mt-2 text-xs text-white/50">Foto: {formatDateTime(zone.updated_at)}</p>
                     </div>
@@ -795,7 +797,7 @@ function SummaryCard({ icon: Icon, label, value, detail, compact = false }) {
 function ZoneCapacityTotal({ zone }) {
   return (
     <span className="mr-4 shrink-0 text-sm font-black uppercase text-white/78">
-      {zone.id === "A" ? "46 espacios" : "73 espacios"}
+      {zone.id === "A" ? "45 espacios" : "73 espacios"}
     </span>
   );
 }
@@ -810,7 +812,7 @@ function ZoneCapacityBreakdown({ zone }) {
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Car className="h-4 w-4" />
-          17
+          16
         </span>
       </span>
     );

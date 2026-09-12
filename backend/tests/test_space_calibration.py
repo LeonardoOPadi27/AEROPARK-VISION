@@ -18,7 +18,13 @@ from app.services.analysis_service import serialize_analysis
 from app.services.mobile_parking_service import _build_zone_payload
 from app.services.mobile_parking_service import get_mobile_parking_overview
 from app.services.parking_space_service import get_latest_parking_spaces
-from app.services.space_calibration_service import assign_detections, validate_spaces, save_calibration, load_calibration
+from app.services.space_calibration_service import (
+    assign_detections,
+    get_default_calibration,
+    load_calibration,
+    save_calibration,
+    validate_spaces,
+)
 
 
 def rectangle(code, left, right):
@@ -31,6 +37,17 @@ def calibration(spaces=None):
 
 
 class AssignmentTests(unittest.TestCase):
+    def test_zone_a_template_covers_all_45_spaces_without_manual_calibration(self):
+        template = get_default_calibration("A", 5280, 3956)
+        validate_spaces("A", template["spaces"])
+
+        result = assign_detections(template, [])
+
+        self.assertEqual(len(result["spaces"]), 45)
+        self.assertEqual(result["spaces"][-1]["code"], "A-045")
+        self.assertTrue(result["coverage_complete"])
+        self.assertEqual(result["free_spaces"], 45)
+
     def test_detection_and_empty_slot(self):
         result = assign_detections(calibration(), [{"bbox": [15, 20, 35, 80]}])
         self.assertEqual([s["status"] for s in result["spaces"]], ["occupied", "free"])
@@ -148,7 +165,7 @@ class CalibrationPersistenceTests(unittest.TestCase):
         self.assertFalse(summary["coverage_complete"])
         self.assertIsNone(summary["free_spaces"])
         self.assertEqual(summary["located_free_spaces"], 2)
-        self.assertEqual(summary["unknown_spaces"], 117)
+        self.assertEqual(summary["unknown_spaces"], 116)
         latest = get_latest_parking_spaces(self.db)
         self.assertEqual(len(latest["spaces"]), 73)
         self.assertEqual(sum(s["occupied"] is None for s in latest["spaces"]), 71)

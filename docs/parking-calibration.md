@@ -1,7 +1,7 @@
 # Calibracion por espacio
 
 La web y la app consumen los mismos estados de `/mobile/parking-overview`.
-Cada calibracion vincula codigos A-001..A-046 o B-001..B-073 con cuatro
+Cada calibracion vincula codigos A-001..A-045 o B-001..B-073 con cuatro
 esquinas sobre una foto concreta. Se guarda en PostgreSQL en
 `configuracion_sistema`, bajo `parking_calibration:<id_imagen>`.
 No requiere una tabla ni una migracion nueva sobre el esquema operativo actual.
@@ -20,14 +20,15 @@ No requiere una tabla ni una migracion nueva sobre el esquema operativo actual.
 El editor permite zoom, ocultar detecciones, deshacer puntos y quitar poligonos.
 Para otra foto, **Reutilizar calibracion** carga una referencia como borrador.
 Hay que comprobar el encuadre y ajustar las esquinas antes de guardar.
-La coincidencia de nombre, zona o resolucion no activa una calibracion anterior.
-No se ha implementado registro automatico entre tomas del dron.
+La calibracion guardada para una foto tiene prioridad sobre la plantilla
+automatica de su zona. No se reutiliza de forma silenciosa sobre otra foto.
 
 ## Interpretacion
 
 - Rojo: centro de una deteccion dentro de ese espacio.
 - Verde: espacio calibrado sin detecciones ni solapamientos ambiguos.
-- Gris: sin calibracion, sin detalles de deteccion o con asignacion ambigua.
+- Gris: fuera de la parte visible de la plantilla, sin detalles de deteccion o
+  con asignacion ambigua.
 - Celeste/ambar: reporte de la app; prevalece sobre el estado de la foto.
 
 Son resultados de la ultima imagen analizada de cada zona, no observaciones
@@ -42,10 +43,9 @@ sin confirmar. Varias detecciones en un espacio cuentan como una ocupacion.
 Los reportes manuales se combinan por codigo, sin duplicar plazas ocupadas.
 
 Los totales `located_free_spaces` y `located_occupied_spaces` cuentan estados
-ubicados; sumados a `unknown_spaces` dan la capacidad completa.
-`free_spaces`/`occupied_spaces` globales siguen siendo nulos cuando la cobertura
-es incompleta. Sin calibracion se conserva la estimacion agregada, pero sus
-espacios individuales permanecen desconocidos. El conteo de vehiculos del
+ubicados; sumados a `unknown_spaces` dan la capacidad completa. La plantilla
+revisada de cada zona se aplica automaticamente al subir una toma de dron;
+calibrar solo sirve para ajustar su geometria. El conteo de vehiculos del
 analisis puede diferir de los espacios ocupados: incluye detecciones fuera de
 las plazas y posibles detecciones duplicadas.
 
@@ -58,7 +58,7 @@ La asignacion de B sigue el orden espacial de las filas del plano redibujado;
 debe contrastarse con la numeracion de campo si existe una numeracion oficial.
 Estas calibraciones son un punto de partida revisable, no una medicion topografica.
 
-La referencia A vincula 46 espacios. La referencia B vincula 56 de 73:
+La referencia A vincula 45 espacios. La referencia B vincula 56 de 73:
 9 longitudinales, 25 de la fila central y 22 de la fila exterior.
 Los 17 restantes requieren ampliar la calibracion sobre una foto que los muestre.
 Otros espacios pueden quedar grises por detecciones ambiguas.
