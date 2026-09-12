@@ -57,6 +57,7 @@ def get_color_summary(db: Session) -> dict:
 def get_latest_color_summary(db: Session) -> dict:
     latest_analysis = (
         db.query(AnalisisImagen)
+        .filter(AnalisisImagen.estado == "completado_yolo")
         .order_by(AnalisisImagen.fecha_analisis.desc(), AnalisisImagen.id_analisis.desc())
         .first()
     )

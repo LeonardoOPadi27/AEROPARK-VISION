@@ -6,7 +6,7 @@ from datetime import datetime
 import cv2
 import numpy as np
 from fastapi import HTTPException
-from PIL import Image, ImageOps
+from PIL import Image
 from sqlalchemy.orm import Session
 
 from app.models.configuracion_sistema import ConfiguracionSistema
@@ -31,7 +31,9 @@ def get_calibration_editor(db: Session, image_id: int) -> dict:
         raise HTTPException(404, "Imagen no encontrada.")
     try:
         with Image.open(resolve_stored_image_path(image.ruta_archivo)) as source:
-            width, height = ImageOps.exif_transpose(source).size
+            # The detector uses the original pixel coordinate system, so opening
+            # the header is sufficient and avoids decoding a large drone image.
+            width, height = source.size
     except (OSError, ValueError) as exc:
         raise HTTPException(422, "No se puede leer la imagen de referencia.") from exc
     return {

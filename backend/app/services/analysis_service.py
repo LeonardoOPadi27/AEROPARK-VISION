@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy.exc import OperationalError
@@ -41,6 +42,30 @@ def mock_analysis_enabled() -> bool:
     return os.getenv("ALLOW_MOCK_ANALYSIS", "false").strip().lower() == "true"
 
 
+def _mark_stale_pending_analyses(db: Session) -> None:
+    """Expose jobs abandoned by a container restart instead of showing forever pending."""
+    try:
+        timeout_seconds = int(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "300"))
+    except ValueError:
+        timeout_seconds = 300
+
+    cutoff = datetime.utcnow() - timedelta(seconds=max(timeout_seconds, 60))
+    stale_analyses = (
+        db.query(AnalisisImagen)
+        .filter(
+            AnalisisImagen.estado == "pendiente",
+            AnalisisImagen.fecha_analisis < cutoff,
+        )
+        .all()
+    )
+    if not stale_analyses:
+        return
+
+    for analysis in stale_analyses:
+        analysis.estado = "fallido"
+    db.commit()
+
+
 def serialize_analysis(analysis: AnalisisImagen) -> dict:
     image = analysis.imagen
     zone_metadata = get_image_zone(image)
@@ -52,6 +77,8 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
         if analysis.estado == "completado_yolo"
         else "mock"
         if analysis.estado == "completado_mock"
+        else "failed"
+        if analysis.estado == "fallido"
         else "pending"
     )
     color_counts: dict[str, int] = {}
@@ -256,11 +283,13 @@ def ensure_analysis_for_image(
 
 
 def get_analysis_list(db: Session) -> list[dict]:
+    _mark_stale_pending_analyses(db)
     images = db.query(ImagenCapturada).order_by(ImagenCapturada.id_imagen.desc()).all()
     return [serialize_analysis(image.analisis) for image in images if image.analisis]
 
 
 def get_latest_analysis(db: Session) -> dict:
+    _mark_stale_pending_analyses(db)
     analysis = (
         db.query(AnalisisImagen)
         .join(ImagenCapturada)

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from threading import Lock
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
@@ -17,6 +18,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 UPLOAD_DIR = BACKEND_ROOT / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ANALYSIS_LOCK = Lock()
 
 
 def _serialize_image(image: ImagenCapturada) -> dict:
@@ -138,8 +140,10 @@ def process_uploaded_image(
         if image is None:
             return
 
-        ensure_analysis_for_image(db, image, source_path=path)
-        db.commit()
+        # The free deployment cannot safely run several PyTorch inferences at once.
+        with ANALYSIS_LOCK:
+            ensure_analysis_for_image(db, image, source_path=path)
+            db.commit()
     except Exception:
         db.rollback()
         analysis = db.query(AnalisisImagen).filter_by(id_imagen=image_id).first()

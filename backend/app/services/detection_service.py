@@ -1,8 +1,12 @@
 import hashlib
 import os
-from functools import lru_cache
+import gc
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import urllib.request
+from urllib.parse import urlparse
+
+from PIL import Image
 
 
 class DetectionUnavailableError(RuntimeError):
@@ -14,15 +18,67 @@ BACKEND_ROOT = PROJECT_ROOT / "backend"
 DEFAULT_WEIGHTS_PATH = PROJECT_ROOT / "ai-model" / "weights" / "best.pt"
 DEFAULT_TOTAL_SPACES = int(os.getenv("TOTAL_PARKING_SPACES", "35"))
 TRAINED_CLASS_NAMES = {"car", "motorcycle"}
+DEFAULT_MAX_SOURCE_DIMENSION = 1600
 
 
 def _get_inference_size() -> int:
     """Keep CPU inference within the response window used by the web service."""
     try:
-        size = int(os.getenv("YOLO_INFERENCE_SIZE", "512"))
+        size = int(os.getenv("YOLO_INFERENCE_SIZE", "416"))
     except ValueError:
-        return 512
+        return 416
     return min(max(size, 320), 1280)
+
+
+def _get_max_source_dimension() -> int:
+    try:
+        dimension = int(
+            os.getenv("YOLO_MAX_SOURCE_DIMENSION", str(DEFAULT_MAX_SOURCE_DIMENSION))
+        )
+    except ValueError:
+        return DEFAULT_MAX_SOURCE_DIMENSION
+    return min(max(dimension, 640), 2400)
+
+
+def _prepare_image_for_inference(
+    image_path: Path,
+    destination_dir: Path,
+) -> tuple[Path, float, float]:
+    """Create a bounded JPEG copy so large drone frames do not exhaust RAM."""
+    with Image.open(image_path) as source:
+        original_width, original_height = source.size
+        max_dimension = _get_max_source_dimension()
+        source.draft("RGB", (max_dimension, max_dimension))
+        prepared = source.convert("RGB")
+        prepared.thumbnail(
+            (max_dimension, max_dimension),
+            Image.Resampling.LANCZOS,
+        )
+        prepared_path = destination_dir / "inference.jpg"
+        prepared.save(prepared_path, format="JPEG", quality=90, optimize=True)
+
+    scale_x = original_width / prepared.width
+    scale_y = original_height / prepared.height
+    return prepared_path, scale_x, scale_y
+
+
+def _restore_detection_coordinates(
+    detections: list[dict],
+    scale_x: float,
+    scale_y: float,
+) -> list[dict]:
+    restored = []
+    for detection in detections:
+        x1, y1, x2, y2 = detection["bbox"]
+        item = detection.copy()
+        item["bbox"] = [
+            round(x1 * scale_x),
+            round(y1 * scale_y),
+            round(x2 * scale_x),
+            round(y2 * scale_y),
+        ]
+        restored.append(item)
+    return restored
 
 
 def get_weights_path() -> Path:
@@ -56,7 +112,15 @@ def resolve_stored_image_path(stored_url: str) -> Path:
         extension = Path(stored_url.split("?", 1)[0]).suffix.lower() or ".jpg"
         cached_path = cache_dir / f"{cache_name}{extension}"
         if not cached_path.exists():
-            urllib.request.urlretrieve(stored_url, cached_path)
+            try:
+                urllib.request.urlretrieve(stored_url, cached_path)
+            except Exception:
+                from app.services.storage_service import download_file, object_storage_enabled
+
+                object_key = urlparse(stored_url).path.lstrip("/")
+                if not object_storage_enabled() or not object_key:
+                    raise
+                download_file(object_key, cached_path)
         return cached_path
 
     normalized = stored_url.lstrip("/")
@@ -84,32 +148,12 @@ def get_yolo_status() -> dict:
             "reason": "No se encontró el archivo de pesos YOLO.",
         }
 
-    try:
-        from ultralytics import YOLO  # noqa: F401
-        import cv2  # noqa: F401
-        import numpy  # noqa: F401
-    except Exception as exc:
-        return {
-            "ready": False,
-            "mode": "unavailable",
-            "weights_path": str(weights_path),
-            "reason": f"Dependencias YOLO no disponibles: {exc}",
-        }
-
     return {
         "ready": True,
         "mode": "yolo",
         "weights_path": str(weights_path),
         "reason": "YOLO listo para inferencia.",
     }
-
-
-@lru_cache(maxsize=1)
-def _load_yolo_model(weights_path: str):
-    """Load weights once per worker instead of once per uploaded image."""
-    from ultralytics import YOLO
-
-    return YOLO(weights_path)
 
 
 def _classify_color_from_hsv(hue: float, saturation: float, value: float) -> str:
@@ -296,35 +340,52 @@ def detect_vehicles_with_yolo(image_path: Path) -> dict:
     if not status["ready"]:
         raise DetectionUnavailableError(status["reason"])
 
-    model = _load_yolo_model(str(get_weights_path()))
-    results = model.predict(
-        source=str(image_path),
-        verbose=False,
-        conf=0.25,
-        imgsz=_get_inference_size(),
-    )
-    result = results[0]
+    from ultralytics import YOLO
 
-    detections: list[dict] = []
-    confidences: list[float] = []
-    names = result.names
+    model = None
+    results = None
+    try:
+        with TemporaryDirectory(prefix="aeropark-yolo-") as temporary_directory:
+            prepared_path, scale_x, scale_y = _prepare_image_for_inference(
+                image_path,
+                Path(temporary_directory),
+            )
+            model = YOLO(str(get_weights_path()))
+            results = model.predict(
+                source=str(prepared_path),
+                verbose=False,
+                conf=0.25,
+                imgsz=_get_inference_size(),
+            )
+            result = results[0]
 
-    for box in result.boxes:
-        class_id = int(box.cls.item())
-        label = str(names[class_id]).lower()
-        if label not in TRAINED_CLASS_NAMES:
-            continue
+            detections: list[dict] = []
+            confidences: list[float] = []
+            names = result.names
 
-        x1, y1, x2, y2 = [int(value) for value in box.xyxy[0].tolist()]
-        confidence = float(box.conf.item())
-        confidences.append(confidence)
-        detections.append(
-            {
-                "label": label,
-                "confidence": round(confidence, 4),
-                "bbox": [x1, y1, x2, y2],
-            }
-        )
+            for box in result.boxes:
+                class_id = int(box.cls.item())
+                label = str(names[class_id]).lower()
+                if label not in TRAINED_CLASS_NAMES:
+                    continue
+
+                x1, y1, x2, y2 = [int(value) for value in box.xyxy[0].tolist()]
+                confidence = float(box.conf.item())
+                confidences.append(confidence)
+                detections.append(
+                    {
+                        "label": label,
+                        "confidence": round(confidence, 4),
+                        "bbox": [x1, y1, x2, y2],
+                    }
+                )
+
+            detections = enrich_detections_with_colors(prepared_path, detections)
+            detections = _restore_detection_coordinates(detections, scale_x, scale_y)
+    finally:
+        results = None
+        model = None
+        gc.collect()
 
     vehiculos_detectados = len(detections)
     total_spaces = max(DEFAULT_TOTAL_SPACES, vehiculos_detectados)
@@ -332,7 +393,6 @@ def detect_vehicles_with_yolo(image_path: Path) -> dict:
     espacios_libres = max(total_spaces - espacios_ocupados, 0)
     porcentaje_ocupacion = round((espacios_ocupados / total_spaces) * 100, 1) if total_spaces else 0
     precision_modelo = round((sum(confidences) / len(confidences)) * 100, 1) if confidences else 0
-    detections = enrich_detections_with_colors(image_path, detections)
     color_distribution = _build_color_distribution(detections)
 
     return {

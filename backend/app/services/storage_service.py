@@ -60,6 +60,15 @@ def upload_file(path: Path, object_key: str, content_type: str) -> str:
     return f"{S3_PUBLIC_BASE_URL}/{object_key}"
 
 
+def download_file(object_key: str, destination: Path) -> None:
+    """Fetch an object with service credentials when its public URL is unavailable."""
+    if not object_storage_enabled():
+        raise RuntimeError("El almacenamiento externo no está habilitado.")
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    _s3_client().download_file(S3_BUCKET, object_key, str(destination))
+
+
 def delete_file(object_key: str) -> None:
     if object_storage_enabled():
         _s3_client().delete_object(Bucket=S3_BUCKET, Key=object_key)
