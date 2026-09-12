@@ -502,6 +502,7 @@ export default function ParkingSpacesPage({ onLogout }) {
                         <p className="text-xs text-white/60">
                           {zone.calibrated_spaces ?? 0}/{zone.total_spaces} ubicados · {zone.unknown_spaces ?? zone.total_spaces} sin confirmar
                           {zone.mapping_source === "zone_template" ? " · plantilla automatica" : ""}
+                          {zone.mapping_source === "zone_template_adjusted" ? " · plantilla ajustada" : ""}
                         </p>
                         <button type="button" onClick={() => setCalibrationZoneId(zone.id)} className="flex items-center gap-2 rounded-md border border-white/20 px-3 py-2 text-xs hover:bg-white/10"><ScanLine size={15} />Ajustar plano {zone.id}</button>
                       </div>

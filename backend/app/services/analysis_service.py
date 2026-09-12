@@ -17,8 +17,12 @@ from app.services.detection_service import (
 )
 from app.services.image_zone_service import get_image_zone
 from app.services.parking_zone_config import get_zone_capacity
-from app.services.space_calibration_service import load_calibration, assign_detections
-from app.services.space_calibration_service import get_default_calibration
+from app.services.space_calibration_service import (
+    assign_detections,
+    get_default_calibration,
+    load_calibration,
+    merge_calibrations,
+)
 from PIL import Image
 
 
@@ -161,18 +165,26 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
         ],
     }
     db = object_session(analysis)
-    calibration = load_calibration(db, analysis.id_imagen) if db is not None else None
-    mapping_source = "manual_calibration" if calibration else None
-    if calibration is None and analysis_mode == "yolo" and image and result["zone_code"]:
+    saved_calibration = load_calibration(db, analysis.id_imagen) if db is not None else None
+    calibration = saved_calibration
+    mapping_source = "manual_calibration" if saved_calibration else None
+    if analysis_mode == "yolo" and image and result["zone_code"]:
         try:
             with Image.open(resolve_stored_image_path(image.ruta_archivo)) as source:
-                calibration = get_default_calibration(
+                default_calibration = get_default_calibration(
                     result["zone_code"], *source.size
                 )
-            mapping_source = "zone_template"
+            if default_calibration:
+                calibration = (
+                    merge_calibrations(default_calibration, saved_calibration)
+                    if saved_calibration
+                    and saved_calibration["zone_code"] == result["zone_code"]
+                    else default_calibration
+                )
+                mapping_source = calibration["source"]
         except (OSError, ValueError):
             # A missing/corrupt original must not make analysis endpoints fail.
-            calibration = None
+            calibration = saved_calibration
     if calibration and analysis_mode == "yolo" and calibration["zone_code"] == result["zone_code"]:
         # Old aggregate-only records cannot establish empty individual spaces.
         if len(vehicles) == (analysis.vehiculos_detectados or 0):

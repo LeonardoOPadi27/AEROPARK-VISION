@@ -22,6 +22,7 @@ from app.services.space_calibration_service import (
     assign_detections,
     get_default_calibration,
     load_calibration,
+    merge_calibrations,
     save_calibration,
     validate_spaces,
 )
@@ -47,6 +48,15 @@ class AssignmentTests(unittest.TestCase):
         self.assertEqual(result["spaces"][-1]["code"], "A-045")
         self.assertTrue(result["coverage_complete"])
         self.assertEqual(result["free_spaces"], 45)
+
+    def test_partial_manual_calibration_overrides_template_without_hiding_slots(self):
+        template = get_default_calibration("A", 5280, 3956)
+        manual_space = rectangle("A-001", .1, .4)
+        merged = merge_calibrations(template, {"zone_code": "A", "spaces": [manual_space]})
+
+        self.assertEqual(len(merged["spaces"]), 45)
+        self.assertEqual(merged["spaces"][0], manual_space)
+        self.assertEqual(merged["spaces"][-1]["code"], "A-045")
 
     def test_detection_and_empty_slot(self):
         result = assign_detections(calibration(), [{"bbox": [15, 20, 35, 80]}])

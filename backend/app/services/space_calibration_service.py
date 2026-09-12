@@ -124,6 +124,33 @@ def get_default_calibration(
     }
 
 
+def merge_calibrations(default: dict, saved: dict) -> dict:
+    """Use saved polygons as precise overrides without losing template coverage."""
+    zone_code = default["zone_code"]
+    capacity = get_zone_capacity(zone_code) or 0
+    allowed_codes = {f"{zone_code}-{index:03d}" for index in range(1, capacity + 1)}
+    saved_by_code = {
+        space["code"]: space
+        for space in saved.get("spaces", [])
+        if space.get("code") in allowed_codes
+    }
+    template_codes = {space["code"] for space in default["spaces"]}
+    spaces = [
+        saved_by_code.get(space["code"], space)
+        for space in default["spaces"]
+    ]
+    spaces.extend(
+        space
+        for code, space in saved_by_code.items()
+        if code not in template_codes
+    )
+    return {
+        **default,
+        "spaces": spaces,
+        "source": "zone_template_adjusted",
+    }
+
+
 def calibration_key(image_id: int) -> str:
     return f"parking_calibration:{image_id}"
 
