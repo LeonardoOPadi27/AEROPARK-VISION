@@ -1,5 +1,6 @@
 import hashlib
 import os
+from functools import lru_cache
 from pathlib import Path
 import urllib.request
 
@@ -13,6 +14,15 @@ BACKEND_ROOT = PROJECT_ROOT / "backend"
 DEFAULT_WEIGHTS_PATH = PROJECT_ROOT / "ai-model" / "weights" / "best.pt"
 DEFAULT_TOTAL_SPACES = int(os.getenv("TOTAL_PARKING_SPACES", "35"))
 TRAINED_CLASS_NAMES = {"car", "motorcycle"}
+
+
+def _get_inference_size() -> int:
+    """Keep CPU inference within the response window used by the web service."""
+    try:
+        size = int(os.getenv("YOLO_INFERENCE_SIZE", "512"))
+    except ValueError:
+        return 512
+    return min(max(size, 320), 1280)
 
 
 def get_weights_path() -> Path:
@@ -92,6 +102,14 @@ def get_yolo_status() -> dict:
         "weights_path": str(weights_path),
         "reason": "YOLO listo para inferencia.",
     }
+
+
+@lru_cache(maxsize=1)
+def _load_yolo_model(weights_path: str):
+    """Load weights once per worker instead of once per uploaded image."""
+    from ultralytics import YOLO
+
+    return YOLO(weights_path)
 
 
 def _classify_color_from_hsv(hue: float, saturation: float, value: float) -> str:
@@ -278,10 +296,13 @@ def detect_vehicles_with_yolo(image_path: Path) -> dict:
     if not status["ready"]:
         raise DetectionUnavailableError(status["reason"])
 
-    from ultralytics import YOLO
-
-    model = YOLO(str(get_weights_path()))
-    results = model.predict(source=str(image_path), verbose=False, conf=0.25)
+    model = _load_yolo_model(str(get_weights_path()))
+    results = model.predict(
+        source=str(image_path),
+        verbose=False,
+        conf=0.25,
+        imgsz=_get_inference_size(),
+    )
     result = results[0]
 
     detections: list[dict] = []
