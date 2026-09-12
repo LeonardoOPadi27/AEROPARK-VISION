@@ -1,6 +1,7 @@
 import hashlib
 import os
 import gc
+import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import urllib.request
@@ -111,16 +112,37 @@ def resolve_stored_image_path(stored_url: str) -> Path:
         cache_name = hashlib.sha256(stored_url.encode("utf-8")).hexdigest()
         extension = Path(stored_url.split("?", 1)[0]).suffix.lower() or ".jpg"
         cached_path = cache_dir / f"{cache_name}{extension}"
-        if not cached_path.exists():
+        temporary_path = cached_path.with_suffix(f"{cached_path.suffix}.download")
+
+        def cached_file_is_valid() -> bool:
+            if not cached_path.exists() or cached_path.stat().st_size == 0:
+                return False
             try:
-                urllib.request.urlretrieve(stored_url, cached_path)
+                with Image.open(cached_path) as image:
+                    image.verify()
+                return True
+            except (OSError, ValueError):
+                return False
+
+        if not cached_file_is_valid():
+            cached_path.unlink(missing_ok=True)
+            temporary_path.unlink(missing_ok=True)
+            try:
+                request = urllib.request.Request(
+                    stored_url,
+                    headers={"User-Agent": "Mozilla/5.0 AeroParkVision/1.0"},
+                )
+                with urllib.request.urlopen(request, timeout=45) as response:
+                    with temporary_path.open("wb") as file_handle:
+                        shutil.copyfileobj(response, file_handle, length=1024 * 1024)
             except Exception:
                 from app.services.storage_service import download_file, object_storage_enabled
 
                 object_key = urlparse(stored_url).path.lstrip("/")
                 if not object_storage_enabled() or not object_key:
                     raise
-                download_file(object_key, cached_path)
+                download_file(object_key, temporary_path)
+            temporary_path.replace(cached_path)
         return cached_path
 
     normalized = stored_url.lstrip("/")
