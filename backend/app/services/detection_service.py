@@ -17,6 +17,7 @@ class DetectionUnavailableError(RuntimeError):
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
 DEFAULT_WEIGHTS_PATH = PROJECT_ROOT / "ai-model" / "weights" / "best.pt"
+ZONE_A_WEIGHTS_PATH = PROJECT_ROOT / "ai-model" / "weights" / "zone_a_best.pt"
 DEFAULT_TOTAL_SPACES = int(os.getenv("TOTAL_PARKING_SPACES", "35"))
 TRAINED_CLASS_NAMES = {"car", "motorcycle"}
 DEFAULT_MAX_SOURCE_DIMENSION = 1600
@@ -357,7 +358,7 @@ def _build_color_distribution(detections: list[dict]) -> list[dict]:
     ]
 
 
-def detect_vehicles_with_yolo(image_path: Path) -> dict:
+def detect_vehicles_with_yolo(image_path: Path, zone_code: str | None = None) -> dict:
     status = get_yolo_status()
     if not status["ready"]:
         raise DetectionUnavailableError(status["reason"])
@@ -372,35 +373,50 @@ def detect_vehicles_with_yolo(image_path: Path) -> dict:
                 image_path,
                 Path(temporary_directory),
             )
-            model = YOLO(str(get_weights_path()))
-            results = model.predict(
-                source=str(prepared_path),
-                verbose=False,
-                conf=0.25,
-                imgsz=_get_inference_size(),
-            )
-            result = results[0]
-
             detections: list[dict] = []
             confidences: list[float] = []
-            names = result.names
+            normalized_zone = (zone_code or "").strip().upper()
+            use_zone_a_model = normalized_zone == "A" and ZONE_A_WEIGHTS_PATH.exists()
+            model = YOLO(str(ZONE_A_WEIGHTS_PATH if use_zone_a_model else get_weights_path()))
 
-            for box in result.boxes:
-                class_id = int(box.cls.item())
-                label = str(names[class_id]).lower()
+            if use_zone_a_model:
+                # Fixed camera regions keep small motorcycles large without raising
+                # the global inference size beyond the Render memory budget.
+                with Image.open(prepared_path) as prepared:
+                    width, height = prepared.size
+                    regions = (
+                        ("motorcycle", (0.065, 0.224, 0.230, 0.630), 0.45),
+                        ("car", (0.322, 0.137, 0.860, 0.414), 0.25),
+                        ("car", (0.223, 0.588, 0.921, 0.928), 0.25),
+                    )
+                    raw_detections = []
+                    for index, (expected_label, box, minimum_confidence) in enumerate(regions):
+                        left, top, right, bottom = (
+                            round(box[0] * width), round(box[1] * height),
+                            round(box[2] * width), round(box[3] * height),
+                        )
+                        crop_path = Path(temporary_directory) / f"zone-a-{index}.jpg"
+                        prepared.crop((left, top, right, bottom)).save(crop_path, quality=90)
+                        result = model.predict(source=str(crop_path), verbose=False, conf=0.01, imgsz=416)[0]
+                        for detected in result.boxes:
+                            label = str(result.names[int(detected.cls.item())]).lower()
+                            confidence = float(detected.conf.item())
+                            if label != expected_label or confidence < minimum_confidence:
+                                continue
+                            x1, y1, x2, y2 = [int(value) for value in detected.xyxy[0].tolist()]
+                            raw_detections.append((label, confidence, [x1 + left, y1 + top, x2 + left, y2 + top]))
+            else:
+                result = model.predict(source=str(prepared_path), verbose=False, conf=0.25, imgsz=_get_inference_size())[0]
+                raw_detections = [
+                    (str(result.names[int(box.cls.item())]).lower(), float(box.conf.item()), [int(value) for value in box.xyxy[0].tolist()])
+                    for box in result.boxes
+                ]
+
+            for label, confidence, bbox in raw_detections:
                 if label not in TRAINED_CLASS_NAMES:
                     continue
-
-                x1, y1, x2, y2 = [int(value) for value in box.xyxy[0].tolist()]
-                confidence = float(box.conf.item())
                 confidences.append(confidence)
-                detections.append(
-                    {
-                        "label": label,
-                        "confidence": round(confidence, 4),
-                        "bbox": [x1, y1, x2, y2],
-                    }
-                )
+                detections.append({"label": label, "confidence": round(confidence, 4), "bbox": bbox})
 
             detections = enrich_detections_with_colors(prepared_path, detections)
             detections = _restore_detection_coordinates(detections, scale_x, scale_y)

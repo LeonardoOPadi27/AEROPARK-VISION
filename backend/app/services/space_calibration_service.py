@@ -63,7 +63,7 @@ def _default_zone_a_spaces() -> list[dict]:
     spaces: list[dict] = []
     width, height = 1303, 1207
     _build_row(spaces, "A", 1, 9, (112, 735), (175, 481), (174, 752), (235, 498), width, height)
-    _build_row(spaces, "A", 10, 5, (191, 400), (221, 277), (256, 418), (285, 295), width, height)
+    _build_row(spaces, "A", 10, 5, (180, 430), (215, 285), (250, 450), (285, 305), width, height)
     _build_row(spaces, "A", 15, 9, (324, 757), (386, 510), (388, 775), (450, 528), width, height)
     _build_row(spaces, "A", 24, 6, (337, 477), (377, 309), (402, 495), (441, 327), width, height)
     _build_row(spaces, "A", 30, 9, (468, 193), (1089, 350), (436, 315), (1057, 473), width, height)
@@ -267,7 +267,6 @@ def assign_detections(calibration: dict, detections: list[dict]) -> dict:
                 touched.append(code)
         if len(inside) == 1:
             occupied.add(inside[0])
-            uncertain.update(code for code in touched if code != inside[0])
         else:
             uncertain.update(inside + touched)
             unmatched += 1

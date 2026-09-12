@@ -209,10 +209,11 @@ def _build_analysis_values(
 ) -> dict:
     if not force_mock:
         try:
-            detection_result = detect_vehicles_with_yolo(
-                source_path or resolve_stored_image_path(image.ruta_archivo)
-            )
             zone_metadata = get_image_zone(image)
+            detection_result = detect_vehicles_with_yolo(
+                source_path or resolve_stored_image_path(image.ruta_archivo),
+                zone_metadata.get("zone_code") if zone_metadata else None,
+            )
             zone_capacity = get_zone_capacity(
                 zone_metadata.get("zone_code") if zone_metadata else None
             )
