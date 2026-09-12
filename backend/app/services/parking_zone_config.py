@@ -3,8 +3,8 @@ ZONE_DEFINITIONS = [
         "id": "A",
         "title": "Estacionamiento A",
         "subtitle": "Ingreso principal",
-        "capacity": 45,
-        "vehicle_capacity": 16,
+        "capacity": 46,
+        "vehicle_capacity": 17,
         "motorcycle_capacity": 29,
     },
     {

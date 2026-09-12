@@ -67,7 +67,7 @@ def _default_zone_a_spaces() -> list[dict]:
     _build_row(spaces, "A", 15, 9, (324, 757), (386, 510), (388, 775), (450, 528), width, height)
     _build_row(spaces, "A", 24, 6, (337, 477), (377, 309), (402, 495), (441, 327), width, height)
     _build_row(spaces, "A", 30, 9, (468, 193), (1089, 350), (436, 315), (1057, 473), width, height)
-    _build_row(spaces, "A", 39, 7, (310, 963), (1135, 772), (397, 1077), (1177, 889), width, height)
+    _build_row(spaces, "A", 39, 8, (310, 963), (1135, 772), (397, 1077), (1177, 889), width, height)
     return spaces
 
 

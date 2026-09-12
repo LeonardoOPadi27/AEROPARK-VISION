@@ -1,7 +1,7 @@
 # Calibracion por espacio
 
 La web y la app consumen los mismos estados de `/mobile/parking-overview`.
-Cada calibracion vincula codigos A-001..A-045 o B-001..B-073 con cuatro
+Cada calibracion vincula codigos A-001..A-046 o B-001..B-073 con cuatro
 esquinas sobre una foto concreta. Se guarda en PostgreSQL en
 `configuracion_sistema`, bajo `parking_calibration:<id_imagen>`.
 No requiere una tabla ni una migracion nueva sobre el esquema operativo actual.
@@ -58,7 +58,7 @@ La asignacion de B sigue el orden espacial de las filas del plano redibujado;
 debe contrastarse con la numeracion de campo si existe una numeracion oficial.
 Estas calibraciones son un punto de partida revisable, no una medicion topografica.
 
-La referencia A vincula 45 espacios. La referencia B vincula 56 de 73:
+La referencia A vincula 46 espacios. La referencia B vincula 56 de 73:
 9 longitudinales, 25 de la fila central y 22 de la fila exterior.
 Los 17 restantes requieren ampliar la calibracion sobre una foto que los muestre.
 Otros espacios pueden quedar grises por detecciones ambiguas.

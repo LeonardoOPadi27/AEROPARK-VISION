@@ -38,25 +38,25 @@ def calibration(spaces=None):
 
 
 class AssignmentTests(unittest.TestCase):
-    def test_zone_a_template_covers_all_45_spaces_without_manual_calibration(self):
+    def test_zone_a_template_covers_all_46_spaces_without_manual_calibration(self):
         template = get_default_calibration("A", 5280, 3956)
         validate_spaces("A", template["spaces"])
 
         result = assign_detections(template, [])
 
-        self.assertEqual(len(result["spaces"]), 45)
-        self.assertEqual(result["spaces"][-1]["code"], "A-045")
+        self.assertEqual(len(result["spaces"]), 46)
+        self.assertEqual(result["spaces"][-1]["code"], "A-046")
         self.assertTrue(result["coverage_complete"])
-        self.assertEqual(result["free_spaces"], 45)
+        self.assertEqual(result["free_spaces"], 46)
 
     def test_partial_manual_calibration_overrides_template_without_hiding_slots(self):
         template = get_default_calibration("A", 5280, 3956)
         manual_space = rectangle("A-001", .1, .4)
         merged = merge_calibrations(template, {"zone_code": "A", "spaces": [manual_space]})
 
-        self.assertEqual(len(merged["spaces"]), 45)
+        self.assertEqual(len(merged["spaces"]), 46)
         self.assertEqual(merged["spaces"][0], manual_space)
-        self.assertEqual(merged["spaces"][-1]["code"], "A-045")
+        self.assertEqual(merged["spaces"][-1]["code"], "A-046")
 
     def test_detection_and_empty_slot(self):
         result = assign_detections(calibration(), [{"bbox": [15, 20, 35, 80]}])
@@ -175,7 +175,7 @@ class CalibrationPersistenceTests(unittest.TestCase):
         self.assertFalse(summary["coverage_complete"])
         self.assertIsNone(summary["free_spaces"])
         self.assertEqual(summary["located_free_spaces"], 2)
-        self.assertEqual(summary["unknown_spaces"], 116)
+        self.assertEqual(summary["unknown_spaces"], 117)
         latest = get_latest_parking_spaces(self.db)
         self.assertEqual(len(latest["spaces"]), 73)
         self.assertEqual(sum(s["occupied"] is None for s in latest["spaces"]), 71)
