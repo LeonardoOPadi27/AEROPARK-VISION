@@ -47,7 +47,13 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
     zone_capacity = get_zone_capacity(
         zone_metadata.get("zone_code") if zone_metadata else None
     )
-    analysis_mode = "yolo" if analysis.estado == "completado_yolo" else "mock"
+    analysis_mode = (
+        "yolo"
+        if analysis.estado == "completado_yolo"
+        else "mock"
+        if analysis.estado == "completado_mock"
+        else "pending"
+    )
     color_counts: dict[str, int] = {}
     type_counts: dict[str, int] = {}
     vehicles = _get_analysis_vehicles(analysis)
@@ -143,11 +149,15 @@ def _get_analysis_vehicles(analysis: AnalisisImagen) -> list[VehiculoDetectado]:
         return []
 
 
-def _build_analysis_values(image: ImagenCapturada, force_mock: bool = False) -> dict:
+def _build_analysis_values(
+    image: ImagenCapturada,
+    force_mock: bool = False,
+    source_path=None,
+) -> dict:
     if not force_mock:
         try:
             detection_result = detect_vehicles_with_yolo(
-                resolve_stored_image_path(image.ruta_archivo)
+                source_path or resolve_stored_image_path(image.ruta_archivo)
             )
             zone_metadata = get_image_zone(image)
             zone_capacity = get_zone_capacity(
@@ -219,8 +229,13 @@ def ensure_analysis_for_image(
     image: ImagenCapturada,
     *,
     force_mock: bool = False,
+    source_path=None,
 ) -> AnalisisImagen:
-    values = _build_analysis_values(image, force_mock=force_mock)
+    values = _build_analysis_values(
+        image,
+        force_mock=force_mock,
+        source_path=source_path,
+    )
     detail_values = values.copy()
     values.pop("detections", None)
 

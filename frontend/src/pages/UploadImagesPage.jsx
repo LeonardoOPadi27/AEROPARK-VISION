@@ -113,7 +113,7 @@ export default function UploadImagesPage({ onLogout }) {
       const result = await uploadImage(imageFile, selectedZoneCode);
       setUploadResult(result);
       setLatestImage(result);
-      setStatus("Imagen subida correctamente");
+      setStatus("Imagen subida. El análisis se ejecuta en segundo plano.");
     } catch {
       setStatus("No se pudo subir la imagen");
     } finally {

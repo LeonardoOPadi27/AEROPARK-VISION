@@ -6,6 +6,8 @@ from fastapi import HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
+from app.config.database import SessionLocal
+from app.models.analisis import AnalisisImagen
 from app.models.imagen import ImagenCapturada
 from app.services.analysis_service import ensure_analysis_for_image, serialize_analysis
 from app.services.image_zone_service import get_image_zone, save_image_zone
@@ -32,7 +34,11 @@ def _serialize_image(image: ImagenCapturada) -> dict:
     }
 
 
-def save_uploaded_image(db: Session, file: UploadFile, zone_code: str | None = None) -> dict:
+def save_uploaded_image(
+    db: Session,
+    file: UploadFile,
+    zone_code: str | None = None,
+) -> tuple[dict, Path, bool]:
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
@@ -91,16 +97,13 @@ def save_uploaded_image(db: Session, file: UploadFile, zone_code: str | None = N
         db.flush()
         save_image_zone(image, zone_code)
 
-        analysis = ensure_analysis_for_image(db, image)
+        analysis = AnalisisImagen(id_imagen=image.id_imagen, estado="pendiente")
+        db.add(analysis)
+        db.flush()
         image.ruta_archivo = stored_url
 
         db.commit()
         db.refresh(image)
-        if object_storage_enabled() and destination.exists():
-            try:
-                destination.unlink()
-            except OSError:
-                pass
     except Exception as exc:
         db.rollback()
         if destination.exists():
@@ -119,7 +122,37 @@ def save_uploaded_image(db: Session, file: UploadFile, zone_code: str | None = N
 
     payload = _serialize_image(image)
     payload["analysis"] = serialize_analysis(analysis)
-    return payload
+    return payload, destination, object_storage_enabled()
+
+
+def process_uploaded_image(
+    image_id: int,
+    source_path: str,
+    remove_source_after_processing: bool,
+) -> None:
+    """Run YOLO after the upload response has been returned to the client."""
+    db = SessionLocal()
+    path = Path(source_path)
+    try:
+        image = db.query(ImagenCapturada).filter_by(id_imagen=image_id).first()
+        if image is None:
+            return
+
+        ensure_analysis_for_image(db, image, source_path=path)
+        db.commit()
+    except Exception:
+        db.rollback()
+        analysis = db.query(AnalisisImagen).filter_by(id_imagen=image_id).first()
+        if analysis is not None:
+            analysis.estado = "fallido"
+            db.commit()
+    finally:
+        db.close()
+        if remove_source_after_processing and path.exists():
+            try:
+                path.unlink()
+            except OSError:
+                pass
 
 
 def get_uploaded_images(db: Session) -> list[dict]:

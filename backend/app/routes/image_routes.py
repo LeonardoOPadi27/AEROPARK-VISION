@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -7,6 +7,7 @@ from app.models.usuario import Usuario
 from app.services.image_service import (
     get_latest_uploaded_image,
     get_uploaded_images,
+    process_uploaded_image,
     save_uploaded_image,
 )
 
@@ -15,12 +16,24 @@ router = APIRouter(prefix="/images", tags=["Images"])
 
 @router.post("/upload")
 def upload_image(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     zone_code: str | None = Form(default=None),
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_current_user),
 ):
-    return save_uploaded_image(db, file, zone_code=zone_code)
+    payload, source_path, remove_source_after_processing = save_uploaded_image(
+        db,
+        file,
+        zone_code=zone_code,
+    )
+    background_tasks.add_task(
+        process_uploaded_image,
+        payload["id_imagen"],
+        str(source_path),
+        remove_source_after_processing,
+    )
+    return payload
 
 
 @router.get("")

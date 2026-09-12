@@ -56,6 +56,13 @@ export default function AnalysisPage({ onLogout }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!rows.some((row) => row.estado === "pendiente")) return undefined;
+
+    const intervalId = window.setInterval(loadData, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [rows]);
+
   const handleRunAnalysis = async (imageId) => {
     setRunningImageId(imageId);
     try {
@@ -184,15 +191,19 @@ export default function AnalysisPage({ onLogout }) {
                           : "text-white/60"
                       }
                     >
-                      {row.analysis_mode}
+                      {row.estado === "pendiente" ? "procesando" : row.analysis_mode}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleRunAnalysis(row.id_imagen)}
-                      disabled={runningImageId === row.id_imagen}
+                      disabled={runningImageId === row.id_imagen || row.estado === "pendiente"}
                       className="rounded-2xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-black text-white/80 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {runningImageId === row.id_imagen ? "Ejecutando..." : "Reintentar"}
+                      {row.estado === "pendiente"
+                        ? "Procesando..."
+                        : runningImageId === row.id_imagen
+                          ? "Ejecutando..."
+                          : "Reintentar"}
                     </button>
                   </div>
                 ))}
