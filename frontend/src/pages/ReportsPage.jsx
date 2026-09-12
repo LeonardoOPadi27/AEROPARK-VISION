@@ -27,6 +27,9 @@ const formatSourceLabel = (value) => {
   return "Combinado";
 };
 
+const formatPercentage = (value) =>
+  typeof value === "number" ? `${value}%` : "--";
+
 const downloadCsv = (rows) => {
   const headers = [
     "Fecha",
@@ -213,7 +216,7 @@ export default function ReportsPage({ onLogout }) {
                         <h3 className="mt-1.5 text-base font-black">{zone.title}</h3>
                       </div>
                       <span className="shrink-0 rounded-xl border border-white/10 bg-white/[.03] px-2 py-1 text-[11px] font-bold text-white/60">
-                        {zone.occupancy_percentage}%
+                        {formatPercentage(zone.occupancy_percentage)}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-white/55">
@@ -222,10 +225,14 @@ export default function ReportsPage({ onLogout }) {
                     <div className="mt-3 grid grid-cols-2 gap-2.5 text-sm">
                       <Metric label="Libres" value={zone.free_spaces} compact />
                       <Metric label="Ocupados" value={zone.occupied_spaces} compact />
-                      <Metric label="% actual" value={`${zone.occupancy_percentage}%`} compact />
+                      <Metric
+                        label="% actual"
+                        value={formatPercentage(zone.occupancy_percentage)}
+                        compact
+                      />
                       <Metric
                         label="% prom."
-                        value={`${zone.average_occupancy_percentage}%`}
+                        value={formatPercentage(zone.average_occupancy_percentage)}
                         compact
                       />
                     </div>
