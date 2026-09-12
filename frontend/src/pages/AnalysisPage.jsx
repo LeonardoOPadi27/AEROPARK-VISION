@@ -24,9 +24,9 @@ export default function AnalysisPage({ onLogout }) {
   const [error, setError] = useState("");
   const isProcessing = (row) => ["pendiente", "procesando"].includes(row.estado);
 
-  const loadData = async () => {
-    setIsLoading(true);
-    setError("");
+  const loadData = async ({ showLoading = false } = {}) => {
+    if (showLoading) setIsLoading(true);
+    if (showLoading) setError("");
 
     try {
       const [analysisData, statusData] = await Promise.all([
@@ -36,9 +36,9 @@ export default function AnalysisPage({ onLogout }) {
       setRows(analysisData);
       setYoloStatus(statusData);
     } catch {
-      setError("No se pudieron cargar los análisis.");
+      if (showLoading) setError("No se pudieron cargar los análisis.");
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
@@ -47,7 +47,7 @@ export default function AnalysisPage({ onLogout }) {
 
     const load = async () => {
       if (!isMounted) return;
-      await loadData();
+      await loadData({ showLoading: true });
     };
 
     load();
