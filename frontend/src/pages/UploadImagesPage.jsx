@@ -17,6 +17,14 @@ const parkingZones = [
   { code: "B", label: "Zona B" },
 ];
 
+const ANALYSIS_ATTENTION_KEY = "aeropark-analysis-attention";
+const ANALYSIS_ATTENTION_EVENT = "aeropark-analysis-attention";
+
+const notifyAnalysisReady = () => {
+  window.localStorage.setItem(ANALYSIS_ATTENTION_KEY, "true");
+  window.dispatchEvent(new Event(ANALYSIS_ATTENTION_EVENT));
+};
+
 const formatFileSize = (bytes) => {
   if (!bytes) return "0 KB";
   const megabytes = bytes / (1024 * 1024);
@@ -113,7 +121,8 @@ export default function UploadImagesPage({ onLogout }) {
       const result = await uploadImage(imageFile, selectedZoneCode);
       setUploadResult(result);
       setLatestImage(result);
-      setStatus("Imagen subida. El análisis se ejecuta en segundo plano.");
+      setStatus("Última imagen cargada disponible");
+      notifyAnalysisReady();
     } catch {
       setStatus("No se pudo subir la imagen");
     } finally {

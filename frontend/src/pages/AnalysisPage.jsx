@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, Cpu, RefreshCw } from "lucide-react";
+import { BarChart3, Cpu, LoaderCircle, RefreshCw, ScanLine } from "lucide-react";
 import PageScaffold from "../components/PageScaffold";
 import { getAnalyses, getYoloStatus, runAnalysis } from "../services/api";
 
@@ -165,26 +165,32 @@ export default function AnalysisPage({ onLogout }) {
                   <span>Modo</span>
                   <span>Acción</span>
                 </div>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const processing = isProcessing(row);
+                  return (
                   <div
                     key={row.id_analisis}
-                    className="grid grid-cols-[.8fr_1.5fr_.9fr_.9fr_1fr_.9fr_1fr] items-center border-t border-white/10 px-4 py-4 text-sm font-semibold"
+                    className={`analysis-history-row grid grid-cols-[.8fr_1.5fr_.9fr_.9fr_1fr_.9fr_1fr] items-center border-t border-white/10 px-4 py-4 text-sm font-semibold ${
+                      processing ? "analysis-history-row-processing" : ""
+                    }`}
                   >
                     <span>AN-{String(row.id_analisis).padStart(3, "0")}</span>
                     <div>
                       <p className="truncate">{row.image_name ?? `Imagen ${row.id_imagen}`}</p>
                       <p className="text-xs text-white/45">
-                        {formatDateTime(row.fecha_analisis)}
+                        {processing ? "Preparando inferencia" : formatDateTime(row.fecha_analisis)}
                       </p>
                     </div>
                     <div>
-                      <p>{row.total_vehiculos ?? row.vehiculos_detectados}</p>
+                      <p>{processing ? "--" : row.total_vehiculos ?? row.vehiculos_detectados}</p>
                       <p className="text-xs text-white/45">
-                        {row.autos_detectados ?? row.vehiculos_detectados} autos · {row.motocicletas_detectadas ?? 0} motos
+                        {processing
+                          ? "Detectando vehículos"
+                          : `${row.autos_detectados ?? row.vehiculos_detectados} autos · ${row.motocicletas_detectadas ?? 0} motos`}
                       </p>
                     </div>
-                    <span>{row.porcentaje_ocupacion}%</span>
-                    <span>{row.precision_modelo ?? "--"}%</span>
+                    <span>{processing ? "--" : `${row.porcentaje_ocupacion}%`}</span>
+                    <span>{processing ? "--" : `${row.precision_modelo ?? "--"}%`}</span>
                     <span
                       className={
                         row.analysis_mode === "yolo"
@@ -192,22 +198,33 @@ export default function AnalysisPage({ onLogout }) {
                           : "text-white/60"
                       }
                     >
-                      {isProcessing(row) ? "procesando" : row.analysis_mode}
+                      {processing ? (
+                        <span className="analysis-processing-mode">
+                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                          Procesando
+                        </span>
+                      ) : row.analysis_mode}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRunAnalysis(row.id_imagen)}
-                      disabled={runningImageId === row.id_imagen || isProcessing(row)}
-                      className="rounded-2xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-black text-white/80 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isProcessing(row)
-                        ? "Procesando..."
-                        : runningImageId === row.id_imagen
-                          ? "Ejecutando..."
-                          : "Reintentar"}
-                    </button>
+                    {processing ? (
+                      <div className="analysis-processing-indicator" aria-label="Procesando imagen">
+                        <span className="analysis-processing-dot" />
+                        <ScanLine className="h-3.5 w-3.5" />
+                        <span>IA en curso</span>
+                        <span className="analysis-processing-track" aria-hidden="true"><span /></span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleRunAnalysis(row.id_imagen)}
+                        disabled={runningImageId === row.id_imagen}
+                        className="rounded-2xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-black text-white/80 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {runningImageId === row.id_imagen ? "Ejecutando..." : "Reintentar"}
+                      </button>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

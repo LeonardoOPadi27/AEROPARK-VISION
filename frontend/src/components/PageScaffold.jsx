@@ -29,6 +29,9 @@ const navItems = [
   { label: "Configuración", path: "/settings", icon: Settings },
 ];
 
+const ANALYSIS_ATTENTION_KEY = "aeropark-analysis-attention";
+const ANALYSIS_ATTENTION_EVENT = "aeropark-analysis-attention";
+
 const withoutAccents = (text) =>
   text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -46,6 +49,10 @@ export default function PageScaffold({
     if (typeof window === "undefined") return "dark";
     return window.localStorage.getItem("aeropark-theme") || "dark";
   });
+  const [analysisNeedsAttention, setAnalysisNeedsAttention] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(ANALYSIS_ATTENTION_KEY) === "true";
+  });
   const displayTitle = withoutAccents(title);
   const isLight = theme === "light";
 
@@ -60,6 +67,26 @@ export default function PageScaffold({
       String(sidebarCollapsed),
     );
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const syncAnalysisAttention = () => {
+      setAnalysisNeedsAttention(
+        window.localStorage.getItem(ANALYSIS_ATTENTION_KEY) === "true",
+      );
+    };
+
+    window.addEventListener(ANALYSIS_ATTENTION_EVENT, syncAnalysisAttention);
+    window.addEventListener("storage", syncAnalysisAttention);
+    return () => {
+      window.removeEventListener(ANALYSIS_ATTENTION_EVENT, syncAnalysisAttention);
+      window.removeEventListener("storage", syncAnalysisAttention);
+    };
+  }, []);
+
+  const acknowledgeAnalysis = () => {
+    window.localStorage.removeItem(ANALYSIS_ATTENTION_KEY);
+    setAnalysisNeedsAttention(false);
+  };
 
   return (
     <main
@@ -120,14 +147,17 @@ export default function PageScaffold({
           </div>
 
           <nav className="relative z-10 flex gap-1 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
-            {navItems.map((item) => (
+            {navItems.map((item) => {
+              const needsAttention = item.path === "/analysis" && analysisNeedsAttention;
+              return (
               <NavLink
                 key={item.path}
                 to={item.path}
+                onClick={item.path === "/analysis" ? acknowledgeAnalysis : undefined}
                 className={({ isActive }) =>
                   `sidebar-liquid-link group min-w-max lg:min-w-0 ${
                     isActive ? "sidebar-liquid-link-active" : ""
-                  }`
+                  } ${needsAttention ? "analysis-nav-attention" : ""}`
                 }
                 title={sidebarCollapsed ? item.label : undefined}
               >
@@ -141,7 +171,8 @@ export default function PageScaffold({
                   {!sidebarCollapsed ? item.label : null}
                 </span>
               </NavLink>
-            ))}
+              );
+            })}
           </nav>
 
           <div className="relative z-10 mt-6 space-y-2 border-t border-white/10 pt-4">
