@@ -239,14 +239,32 @@ body::-webkit-scrollbar,
 
 .analysis-nav-attention .sidebar-liquid-lens,
 .analysis-nav-attention:hover .sidebar-liquid-lens {
-  background: rgba(255, 255, 255, 0.18);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
-    inset 2px 3px 1px -2px rgba(255, 255, 255, 0.98),
-    0 0 10px rgba(255, 255, 255, 0.34),
-    0 0 26px rgba(154, 220, 255, 0.28);
-  opacity: 1;
-  animation: analysis-sidebar-led-pulse 2.6s ease-in-out infinite;
+  opacity: 0;
+}
+
+.analysis-nav-attention::after {
+  position: absolute;
+  z-index: 2;
+  inset: -1px;
+  padding: 1.5px;
+  pointer-events: none;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 255deg,
+    rgba(255, 255, 255, 0.2) 274deg,
+    rgba(255, 255, 255, 1) 294deg,
+    rgba(163, 231, 255, 0.88) 316deg,
+    transparent 338deg 360deg
+  );
+  content: "";
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.72));
+  animation: analysis-sidebar-border-run 1.8s linear infinite;
 }
 
 .analysis-history-row {
@@ -1119,15 +1137,9 @@ body::-webkit-scrollbar,
   }
 }
 
-@keyframes analysis-sidebar-led-pulse {
-  0%,
-  100% {
-    filter: brightness(0.9);
-    opacity: 0.58;
-  }
-  50% {
-    filter: brightness(1.25);
-    opacity: 1;
+@keyframes analysis-sidebar-border-run {
+  to {
+    transform: rotate(1turn);
   }
 }
 
@@ -1175,7 +1187,7 @@ body::-webkit-scrollbar,
   }
 
   .liquid-segmented-option-active,
-  .analysis-nav-attention .sidebar-liquid-lens,
+  .analysis-nav-attention::after,
   .analysis-history-row-processing::before,
   .analysis-processing-dot,
   .analysis-processing-track > span {
