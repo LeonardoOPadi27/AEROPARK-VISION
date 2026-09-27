@@ -79,7 +79,7 @@ export default function AnalysisPage({ onLogout }) {
   return (
     <PageScaffold
       title="Análisis de imágenes"
-      description="Aquí ya se muestran los análisis generados a partir de las imágenes subidas. Cuando YOLO esté listo, esta misma vista reflejará el procesamiento real del modelo."
+      description="Consulta los resultados generados a partir de las imágenes aéreas procesadas por el sistema."
       module="analysis"
       onLogout={onLogout}
     >

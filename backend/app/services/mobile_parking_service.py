@@ -196,6 +196,21 @@ def _build_zone_payload(
                 "manual_occupied_spaces": confirmed_manual_count,
                 "total_spaces": len(mapped_spaces),
                 "analysis_available": analysis_available,
+                "autos_detectados": (
+                    int(latest_analysis.get("autos_detectados") or 0)
+                    if analysis_available
+                    else None
+                ),
+                "motocicletas_detectadas": (
+                    int(latest_analysis.get("motocicletas_detectadas") or 0)
+                    if analysis_available
+                    else None
+                ),
+                "total_vehiculos_detectados": (
+                    int(latest_analysis.get("total_vehiculos") or 0)
+                    if analysis_available
+                    else None
+                ),
                 "occupancy_is_estimate": analysis_available and not bool(mapped_by_code),
                 "location_assignment_available": bool(mapped_by_code),
                 "location_coverage_complete": unknown_spaces == 0,

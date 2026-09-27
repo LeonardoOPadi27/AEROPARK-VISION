@@ -135,7 +135,7 @@ export default function ReportsPage({ onLogout }) {
   return (
     <PageScaffold
       title="Reportes"
-      description="Resumen operativo del estacionamiento y del uso real de la app mobile dentro del ecosistema AeroPark Vision."
+      description="Indicadores operativos de ocupación, disponibilidad y actividad del sistema AeroPark Vision."
       module="reports"
       onLogout={onLogout}
     >
@@ -200,7 +200,7 @@ export default function ReportsPage({ onLogout }) {
               <SectionTitle
                 eyebrow="Zonas"
                 title="Reporte por estacionamiento"
-                description="Comparacion actual de disponibilidad entre las zonas A y B de Tecsup."
+                description="Comparación de disponibilidad entre las zonas A y B del estacionamiento."
               />
               <div className="grid gap-3 md:grid-cols-3">
                 {report.zones.map((zone) => (
@@ -246,7 +246,7 @@ export default function ReportsPage({ onLogout }) {
                 <SectionTitle
                   eyebrow="Mobile"
                   title="Uso de la app"
-                  description="Indicadores de ocupacion y liberacion manual reportados por usuarios."
+                  description="Indicadores de ocupación y liberación registrados por los usuarios."
                   icon={Smartphone}
                 />
                 <div className="grid gap-2.5 sm:grid-cols-2">
@@ -268,7 +268,7 @@ export default function ReportsPage({ onLogout }) {
                 <SectionTitle
                   eyebrow="Consistencia"
                   title="Cruce analisis vs usuario"
-                  description="Indicadores para evaluar que tan alineados estan los reportes manuales con la ultima revision del sistema."
+                  description="Indicadores para evaluar la consistencia entre los registros manuales y el último análisis del sistema."
                   icon={ShieldCheck}
                 />
                 <div className="grid gap-2.5 sm:grid-cols-2">
@@ -300,7 +300,7 @@ export default function ReportsPage({ onLogout }) {
               <SectionTitle
                 eyebrow="Tendencia"
                 title="Evolucion de ocupacion"
-                description="Ultimos analisis procesados para observar el comportamiento reciente del estacionamiento."
+                description="Análisis recientes para observar la evolución operativa del estacionamiento."
               />
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {chartPoints.map((point) => (

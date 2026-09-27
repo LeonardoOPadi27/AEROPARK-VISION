@@ -348,7 +348,7 @@ export default function ParkingSpacesPage({ onLogout }) {
       ? createPortal(
           <div className="fixed inset-0 z-[999] grid place-items-center overflow-hidden bg-black/92 px-4 py-6 backdrop-blur-md">
             <section
-              className={`flex h-[min(92svh,920px)] w-full flex-col overflow-hidden rounded-[30px] border border-white/12 bg-[#0a0a0a] shadow-2xl ${
+              className={`physical-map-liquid-dialog flex h-[min(92svh,920px)] w-full flex-col overflow-hidden rounded-[30px] shadow-2xl ${
                 expandedZone.id === "B" ? "max-w-[1500px]" : "max-w-6xl"
               }`}
             >
@@ -367,14 +367,14 @@ export default function ParkingSpacesPage({ onLogout }) {
                 <button
                   type="button"
                   onClick={() => setExpandedZoneId(null)}
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[.04] text-white/70 transition hover:bg-white/[.08] hover:text-white"
+                  className="liquid-segmented-control grid h-10 w-10 shrink-0 place-items-center rounded-full text-white/70 hover:text-white"
                   aria-label="Cerrar plano grande"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5">
-                <div className="mb-4 flex shrink-0 flex-wrap items-center justify-center gap-x-7 gap-y-3 rounded-[22px] border border-white/10 bg-black/35 px-4 py-4 text-xs font-bold text-white/62">
+                <div className="physical-map-liquid-legend mb-4 flex shrink-0 flex-wrap items-center justify-center gap-x-7 gap-y-3 px-4 py-4 text-xs font-bold text-white/62">
                   <StatusPill label="Ubicacion no confirmada" className="border-white/30 bg-white/15" />
                   <StatusPill label="Libre segun foto" className="border-emerald-200/70 bg-emerald-400/72" />
                   <StatusPill label="Ocupado segun foto" className="border-red-300/70 bg-red-500/72" />
@@ -407,7 +407,7 @@ export default function ParkingSpacesPage({ onLogout }) {
   return (
     <PageScaffold
       title="Espacios libres"
-      description="Disponibilidad segun la ultima imagen de cada zona y reportes de usuarios."
+      description="Estado de los espacios por zona según la última imagen procesada y las actualizaciones registradas."
       module="parking"
       onLogout={onLogout}
     >
@@ -505,7 +505,7 @@ export default function ParkingSpacesPage({ onLogout }) {
                           {zone.mapping_source === "zone_template" ? " · plantilla automatica" : ""}
                           {zone.mapping_source === "zone_template_adjusted" ? " · plantilla ajustada" : ""}
                         </p>
-                        <button type="button" onClick={() => setCalibrationZoneId(zone.id)} className="flex items-center gap-2 rounded-md border border-white/20 px-3 py-2 text-xs hover:bg-white/10"><ScanLine size={15} />Ajustar plano {zone.id}</button>
+                        <button type="button" onClick={() => setCalibrationZoneId(zone.id)} className="liquid-segmented-control calibration-liquid-control flex items-center gap-2 rounded-full px-3 py-2 text-xs"><ScanLine size={15} />Ajustar plano {zone.id}</button>
                       </div>
                       <p className="mt-2 text-xs text-white/50">Foto: {formatDateTime(zone.updated_at)}</p>
                     </div>
@@ -637,7 +637,9 @@ function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen, sele
     <RootTag
       type={RootTag === "button" ? "button" : undefined}
       onClick={compact ? onOpen : undefined}
-      className={`group relative block w-full rounded-[24px] border border-white/10 bg-[#111] text-left ${
+      className={`group relative block w-full rounded-[24px] border text-left ${
+        large ? "physical-map-liquid-frame" : "border-white/10 bg-[#111]"
+      } ${
         large && isZoneB ? "overflow-visible" : "overflow-hidden"
       } ${
         compact
@@ -730,13 +732,15 @@ function ParkingPhysicalMap({ zone, compact = false, large = false, onOpen, sele
             </div>
           </div>
         ) : (
-          <div className="physical-map-badge pointer-events-none absolute left-3 top-3 rounded-2xl border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-md">
-          <p className="text-[10px] font-black uppercase tracking-[.18em] text-white/50">
-            Plano {zone.id}
-          </p>
+          <div className="physical-map-badge physical-map-liquid-badge pointer-events-none absolute left-3 top-3 px-3 py-2">
           <p className="text-sm font-black text-white">
             {zone.analysis_available
-              ? `${zone.free_spaces} libres · ${zone.occupied_spaces} ocupados${zone.occupancy_is_estimate ? " (estimados)" : ` · ${zone.unknown_spaces} sin confirmar`}`
+              ? [
+                  `${zone.free_spaces} libres`,
+                  `${zone.occupied_spaces} ocupados${zone.occupancy_is_estimate ? " (estimados)" : ""}`,
+                  `${zone.autos_detectados ?? 0} vehiculos`,
+                  zone.motocicletas_detectadas ? `${zone.motocicletas_detectadas} motos` : null,
+                ].filter(Boolean).join(" · ")
               : "Sin analisis operativo de esta zona"}
           </p>
         </div>

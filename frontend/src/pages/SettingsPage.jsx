@@ -114,7 +114,7 @@ export default function SettingsPage({ onLogout }) {
   return (
     <PageScaffold
       title="Configuracion"
-      description="Ajustes que definen como funciona la experiencia mobile para ocupar, liberar y confirmar espacios."
+      description="Configura las reglas operativas para ocupar, liberar y confirmar espacios de estacionamiento."
       module="settings"
       onLogout={onLogout}
     >
@@ -146,7 +146,7 @@ export default function SettingsPage({ onLogout }) {
               <SectionHeader
                 eyebrow="Mobile"
                 title="Preferencias de la app"
-                description="Configura lo minimo importante para que el usuario entre, marque su espacio y no olvide confirmarlo o liberarlo."
+                description="Define las opciones necesarias para registrar, confirmar y liberar espacios de forma ordenada."
                 icon={Smartphone}
               />
               <button
@@ -164,19 +164,19 @@ export default function SettingsPage({ onLogout }) {
               <div className="grid gap-3">
                 <ToggleCard
                   title="Ocupacion manual"
-                  description="Permite que el usuario marque que ya esta usando un espacio."
+                  description="Permite registrar el inicio de uso de un espacio de estacionamiento."
                   checked={form.manual_occupy_enabled}
                   onChange={() => handleToggle("manual_occupy_enabled")}
                 />
                 <ToggleCard
                   title="Liberacion manual"
-                  description="Permite que el usuario deje libre su espacio al retirarse."
+                  description="Permite registrar la liberación de un espacio al finalizar su uso."
                   checked={form.manual_release_enabled}
                   onChange={() => handleToggle("manual_release_enabled")}
                 />
                 <ToggleCard
                   title="Recordatorios"
-                  description="Activa avisos para confirmar si el espacio sigue ocupado."
+                  description="Activa avisos para confirmar el estado de ocupación de los espacios."
                   checked={form.reminders_enabled}
                   onChange={() => handleToggle("reminders_enabled")}
                   icon={BellRing}

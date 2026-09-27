@@ -168,7 +168,9 @@ export default function PageScaffold({
                   }`}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />
-                  {!sidebarCollapsed ? item.label : null}
+                  {!sidebarCollapsed ? (
+                    <span className="sidebar-nav-label">{item.label}</span>
+                  ) : null}
                 </span>
               </NavLink>
               );

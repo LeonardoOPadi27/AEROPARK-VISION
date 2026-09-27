@@ -133,6 +133,200 @@ body::-webkit-scrollbar,
   box-shadow: none;
 }
 
+.calibration-liquid-surface {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  backdrop-filter: blur(10px) saturate(160%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    inset 1.8px 3px 0 -2px rgba(255, 255, 255, 0.38),
+    inset -2px -3px 0 -2px rgba(255, 255, 255, 0.2),
+    inset 0 -8px 8px -8px rgba(255, 255, 255, 0.18),
+    0 7px 18px rgba(0, 0, 0, 0.24);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.calibration-glass-select select:focus-visible,
+.calibration-glass-disclosure:focus-within {
+  outline: 2px solid rgba(195, 239, 255, 0.85);
+  outline-offset: 2px;
+}
+
+.calibration-liquid-dialog {
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 28px;
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.06), transparent 30%),
+    rgba(6, 6, 6, 0.975);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  backdrop-filter: blur(22px) saturate(135%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 28px 72px rgba(0, 0, 0, 0.58);
+}
+
+.calibration-liquid-save {
+  background:
+    linear-gradient(135deg, rgba(139, 255, 207, 0.3), rgba(30, 190, 123, 0.14)),
+    rgba(45, 210, 143, 0.2);
+  border-color: rgba(171, 255, 215, 0.3);
+  color: rgba(234, 255, 244, 0.96);
+}
+
+.calibration-liquid-control {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 240ms ease,
+    box-shadow 240ms ease,
+    background-color 240ms ease;
+}
+
+.calibration-liquid-control::after {
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(circle at 28% 8%, rgba(255, 255, 255, 0.24), transparent 38%);
+  content: "";
+  opacity: 0.42;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.calibration-liquid-control:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 1.8px 3px 0 -2px rgba(255, 255, 255, 0.5),
+    inset -2px -3px 0 -2px rgba(255, 255, 255, 0.25),
+    0 10px 22px rgba(0, 0, 0, 0.34),
+    0 0 16px rgba(255, 255, 255, 0.08);
+  transform: scale(1.025);
+}
+
+.calibration-liquid-control:hover:not(:disabled)::after {
+  opacity: 0.88;
+  transform: scale(1.08);
+}
+
+.calibration-liquid-control:active:not(:disabled) {
+  transform: scale(0.9);
+  transition-duration: 100ms;
+}
+
+.calibration-liquid-control:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.56);
+  outline-offset: 2px;
+}
+
+.calibration-glass-select select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.5rem 2.4rem 0.5rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.calibration-glass-select select option {
+  background: #1d2024;
+  color: #fff;
+}
+
+.calibration-glass-disclosure {
+  padding: 0.7rem 0.75rem;
+}
+
+.calibration-glass-disclosure[open] {
+  border-radius: 18px;
+}
+
+.calibration-glass-disclosure summary {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  list-style: none;
+}
+
+.calibration-glass-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.calibration-glass-disclosure summary svg {
+  margin-right: 0.15rem;
+  transition: transform 180ms ease;
+}
+
+.calibration-glass-disclosure[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.physical-map-liquid-dialog {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 36%),
+    linear-gradient(320deg, rgba(255, 255, 255, 0.015), transparent 46%),
+    rgba(6, 6, 6, 0.98);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+    inset 1.8px 3px 0 -2px rgba(255, 255, 255, 0.25),
+    inset -2px -3px 0 -2px rgba(255, 255, 255, 0.08),
+    inset 0 -10px 14px -12px rgba(255, 255, 255, 0.08),
+    0 24px 70px rgba(0, 0, 0, 0.58);
+}
+
+.physical-map-liquid-legend,
+.physical-map-liquid-badge {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.015)),
+    rgba(22, 22, 22, 0.9);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  backdrop-filter: blur(10px) saturate(160%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+    inset 1.8px 3px 0 -2px rgba(255, 255, 255, 0.3),
+    inset -2px -3px 0 -2px rgba(255, 255, 255, 0.11),
+    inset 0 -8px 8px -8px rgba(255, 255, 255, 0.12),
+    0 7px 18px rgba(0, 0, 0, 0.3);
+}
+
+.physical-map-liquid-frame {
+  border-color: rgba(255, 255, 255, 0.18);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.012) 54%, rgba(255, 255, 255, 0.035)),
+    rgba(15, 15, 15, 0.94);
+  -webkit-backdrop-filter: blur(12px) saturate(155%);
+  backdrop-filter: blur(12px) saturate(155%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 1.8px 3px 0 -2px rgba(255, 255, 255, 0.28),
+    inset -2px -3px 0 -2px rgba(255, 255, 255, 0.11),
+    0 16px 36px rgba(0, 0, 0, 0.42);
+}
+
+.physical-map-liquid-frame > div {
+  background:
+    radial-gradient(ellipse at 76% 12%, rgba(255, 255, 255, 0.045), transparent 38%),
+    radial-gradient(ellipse at 18% 88%, rgba(255, 255, 255, 0.025), transparent 36%),
+    rgba(4, 4, 4, 0.58);
+}
+
 .page-content-shell {
   background:
     linear-gradient(180deg, rgba(14, 14, 14, 0.82), rgba(0, 0, 0, 0.92)),
@@ -242,29 +436,9 @@ body::-webkit-scrollbar,
   opacity: 0;
 }
 
-.analysis-nav-attention::after {
-  position: absolute;
-  z-index: 2;
-  inset: -1px;
-  padding: 1.5px;
-  pointer-events: none;
-  border-radius: inherit;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg 255deg,
-    rgba(255, 255, 255, 0.2) 274deg,
-    rgba(255, 255, 255, 1) 294deg,
-    rgba(163, 231, 255, 0.88) 316deg,
-    transparent 338deg 360deg
-  );
-  content: "";
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.72));
-  animation: analysis-sidebar-border-run 1.8s linear infinite;
+.analysis-nav-attention .sidebar-liquid-content {
+  color: #fff;
+  animation: analysis-sidebar-text-led 1.8s ease-in-out infinite;
 }
 
 .analysis-history-row {
@@ -777,7 +951,9 @@ body::-webkit-scrollbar,
 .theme-light .text-white\/90,
 .theme-light .text-white\/88,
 .theme-light .text-white\/80,
+.theme-light .text-white\/78,
 .theme-light .text-white\/75,
+.theme-light .text-white\/72,
 .theme-light .text-white\/70,
 .theme-light .text-white\/68,
 .theme-light .text-white\/65,
@@ -1087,6 +1263,176 @@ body::-webkit-scrollbar,
   border-color: rgba(255, 255, 255, 0.14);
 }
 
+/* Portals are mounted outside .theme-light, so they inherit the document theme. */
+html[data-theme="light"] .physical-map-liquid-dialog,
+html[data-theme="light"] .calibration-liquid-dialog {
+  color: #000;
+}
+
+html[data-theme="light"] .physical-map-liquid-dialog {
+  border-color: rgba(0, 0, 0, 0.12);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(242, 244, 246, 0.78)),
+    rgba(250, 250, 250, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 28px 72px rgba(0, 0, 0, 0.18);
+}
+
+html[data-theme="light"] .physical-map-liquid-legend,
+html[data-theme="light"] .physical-map-liquid-badge {
+  border-color: rgba(0, 0, 0, 0.13);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(242, 244, 246, 0.72)),
+    rgba(255, 255, 255, 0.76);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.92),
+    inset 2px 3px 0 -2px rgba(255, 255, 255, 1),
+    inset -2px -3px 0 -2px rgba(0, 0, 0, 0.08),
+    0 7px 18px rgba(0, 0, 0, 0.1);
+}
+
+html[data-theme="light"] .physical-map-liquid-frame {
+  border-color: rgba(0, 0, 0, 0.14);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(238, 240, 242, 0.75)),
+    rgba(244, 245, 246, 0.86);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.94),
+    inset 2px 3px 0 -2px rgba(255, 255, 255, 1),
+    inset -2px -3px 0 -2px rgba(0, 0, 0, 0.08),
+    0 16px 36px rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme="light"] .physical-map-liquid-frame > div {
+  background:
+    radial-gradient(ellipse at 76% 12%, rgba(255, 255, 255, 0.82), transparent 38%),
+    rgba(229, 232, 234, 0.72);
+}
+
+html[data-theme="light"] .physical-map-liquid-dialog .text-white,
+html[data-theme="light"] .physical-map-liquid-dialog .physical-map-badge,
+html[data-theme="light"] .physical-map-liquid-dialog .physical-map-badge .text-white,
+html[data-theme="light"] .calibration-liquid-dialog .text-white {
+  color: #000;
+}
+
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/90,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/88,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/80,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/78,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/75,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/72,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/70,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/68,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/65,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/62,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/60,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/90,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/88,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/80,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/78,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/75,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/72,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/70,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/68,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/65,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/62,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/60 {
+  color: rgba(0, 0, 0, 0.68);
+}
+
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/58,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/55,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/52,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/50,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/48,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/45,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/40,
+html[data-theme="light"] .physical-map-liquid-dialog .text-white\/35,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/58,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/55,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/52,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/50,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/48,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/45,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/40,
+html[data-theme="light"] .calibration-liquid-dialog .text-white\/35 {
+  color: rgba(0, 0, 0, 0.54);
+}
+
+html[data-theme="light"] .physical-map-liquid-dialog .border-white\/15,
+html[data-theme="light"] .physical-map-liquid-dialog .border-white\/10,
+html[data-theme="light"] .physical-map-liquid-dialog .border-white\/5,
+html[data-theme="light"] .calibration-liquid-dialog .border-white\/15,
+html[data-theme="light"] .calibration-liquid-dialog .border-white\/10,
+html[data-theme="light"] .calibration-liquid-dialog .border-white\/5 {
+  border-color: rgba(0, 0, 0, 0.11);
+}
+
+html[data-theme="light"] .physical-map-liquid-dialog .liquid-segmented-control,
+html[data-theme="light"] .calibration-liquid-dialog .liquid-segmented-control {
+  border-color: rgba(0, 0, 0, 0.13);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(245, 245, 245, 0.68)),
+    rgba(255, 255, 255, 0.68);
+  color: #000;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.86),
+    inset 2px 3px 1px -2px rgba(255, 255, 255, 1),
+    inset -2px -3px 1px -2px rgba(0, 0, 0, 0.1),
+    0 9px 24px rgba(0, 0, 0, 0.1);
+}
+
+html[data-theme="light"] .calibration-liquid-dialog {
+  border-color: rgba(0, 0, 0, 0.12);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(241, 243, 245, 0.84)),
+    rgba(248, 248, 248, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 28px 72px rgba(0, 0, 0, 0.16);
+}
+
+html[data-theme="light"] .calibration-liquid-dialog .calibration-liquid-surface {
+  border-color: rgba(0, 0, 0, 0.13);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(242, 244, 246, 0.72)),
+    rgba(255, 255, 255, 0.74);
+  color: #000;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+    inset 2px 3px 0 -2px rgba(255, 255, 255, 1),
+    inset -2px -3px 0 -2px rgba(0, 0, 0, 0.08),
+    0 7px 18px rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme="light"] .calibration-liquid-dialog .calibration-glass-select select,
+html[data-theme="light"] .calibration-liquid-dialog .calibration-glass-select svg {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+html[data-theme="light"] .calibration-liquid-dialog .calibration-glass-select option {
+  background: #fff;
+  color: #000;
+}
+
+html[data-theme="light"] .calibration-liquid-dialog .calibration-liquid-save {
+  border-color: rgba(7, 102, 62, 0.3);
+  background:
+    linear-gradient(145deg, rgba(128, 241, 185, 0.72), rgba(52, 192, 120, 0.54)),
+    rgba(79, 204, 131, 0.62);
+  color: #063b22;
+}
+
+html[data-theme="light"] .physical-map-liquid-dialog .physical-map-tooltip {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.88);
+  color: #fff;
+}
+
 .theme-light .occupancy-donut-3d {
   filter:
     drop-shadow(0 15px 15px rgba(0, 0, 0, 0.12))
@@ -1137,9 +1483,17 @@ body::-webkit-scrollbar,
   }
 }
 
-@keyframes analysis-sidebar-border-run {
-  to {
-    transform: rotate(1turn);
+@keyframes analysis-sidebar-text-led {
+  0%,
+  100% {
+    opacity: 0.48;
+    text-shadow: 0 0 2px rgba(255, 255, 255, 0.28);
+  }
+  50% {
+    opacity: 1;
+    text-shadow:
+      0 0 3px rgba(255, 255, 255, 0.95),
+      0 0 10px rgba(191, 236, 255, 0.68);
   }
 }
 
@@ -1187,7 +1541,7 @@ body::-webkit-scrollbar,
   }
 
   .liquid-segmented-option-active,
-  .analysis-nav-attention::after,
+  .analysis-nav-attention .sidebar-liquid-content,
   .analysis-history-row-processing::before,
   .analysis-processing-dot,
   .analysis-processing-track > span {

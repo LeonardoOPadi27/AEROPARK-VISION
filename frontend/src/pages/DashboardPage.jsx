@@ -238,7 +238,7 @@ export default function DashboardPage({ onLogout }) {
   return (
     <PageScaffold
       title="Dashboard"
-      description="Resumen operativo del último análisis, ocupación calculada y comportamiento reciente del estacionamiento."
+      description="Visión general de la ocupación, la disponibilidad y la actividad reciente del estacionamiento."
       module="dashboard"
       onLogout={onLogout}
     >

@@ -83,6 +83,35 @@ def _restore_detection_coordinates(
     return restored
 
 
+def _box_iou(first: list[int], second: list[int]) -> float:
+    left = max(first[0], second[0])
+    top = max(first[1], second[1])
+    right = min(first[2], second[2])
+    bottom = min(first[3], second[3])
+    intersection = max(0, right - left) * max(0, bottom - top)
+    if not intersection:
+        return 0.0
+
+    first_area = max(0, first[2] - first[0]) * max(0, first[3] - first[1])
+    second_area = max(0, second[2] - second[0]) * max(0, second[3] - second[1])
+    union = first_area + second_area - intersection
+    return intersection / union if union else 0.0
+
+
+def _suppress_duplicate_detections(detections: list[dict]) -> list[dict]:
+    """Keep the strongest box when the same vehicle is detected twice."""
+    kept: list[dict] = []
+    for detection in sorted(detections, key=lambda item: item["confidence"], reverse=True):
+        is_duplicate = any(
+            detection["label"] == accepted["label"]
+            and _box_iou(detection["bbox"], accepted["bbox"]) >= 0.40
+            for accepted in kept
+        )
+        if not is_duplicate:
+            kept.append(detection)
+    return kept
+
+
 def get_weights_path() -> Path:
     configured_path = os.getenv("YOLO_WEIGHTS_PATH")
     if configured_path:
@@ -386,6 +415,7 @@ def detect_vehicles_with_yolo(image_path: Path, zone_code: str | None = None) ->
                     width, height = prepared.size
                     regions = (
                         ("motorcycle", (0.065, 0.224, 0.230, 0.630), 0.45),
+                        ("motorcycle", (0.220, 0.250, 0.390, 0.680), 0.10),
                         ("car", (0.322, 0.137, 0.860, 0.414), 0.25),
                         ("car", (0.223, 0.588, 0.921, 0.928), 0.25),
                     )
@@ -418,6 +448,8 @@ def detect_vehicles_with_yolo(image_path: Path, zone_code: str | None = None) ->
                 confidences.append(confidence)
                 detections.append({"label": label, "confidence": round(confidence, 4), "bbox": bbox})
 
+            detections = _suppress_duplicate_detections(detections)
+            confidences = [detection["confidence"] for detection in detections]
             detections = enrich_detections_with_colors(prepared_path, detections)
             detections = _restore_detection_coordinates(detections, scale_x, scale_y)
     finally:

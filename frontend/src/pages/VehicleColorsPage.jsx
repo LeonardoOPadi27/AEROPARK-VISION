@@ -108,7 +108,7 @@ export default function VehicleColorsPage({ onLogout }) {
   return (
     <PageScaffold
       title="Clasificación por color"
-      description="Resumen real de colores detectados en los vehículos identificados por YOLO."
+      description="Distribución de colores identificados en los vehículos detectados en el estacionamiento."
       module="colors"
       onLogout={onLogout}
     >

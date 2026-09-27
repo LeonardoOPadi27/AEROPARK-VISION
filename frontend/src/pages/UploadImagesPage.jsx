@@ -141,7 +141,7 @@ export default function UploadImagesPage({ onLogout }) {
   return (
     <PageScaffold
       title="Carga de imágenes"
-      description="Selecciona una imagen aérea capturada por dron para preparar su análisis. Esta vista ya puede enviar archivos al endpoint POST /images/upload."
+      description="Carga una imagen aérea capturada por dron para actualizar el análisis de ocupación del estacionamiento."
       module="upload"
       onLogout={onLogout}
     >

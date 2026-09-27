@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Copy, Eye, EyeOff, Save, Trash2, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Check, ChevronDown, Copy, Eye, EyeOff, Save, Trash2, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { API_BASE_URL, getImages, getSpaceCalibration, saveSpaceCalibration } from "../services/api";
 
 const imageUrl = (path) => path?.startsWith("http") ? path : `${API_BASE_URL}${path}`;
@@ -9,7 +9,14 @@ const failure = (error) => typeof error.response?.data?.detail === "string"
 
 function Tool({ label, children, ...props }) {
   return <button type="button" title={label} aria-label={label}
-    className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-white/20 hover:bg-white/10 disabled:opacity-30" {...props}>{children}</button>;
+    className="liquid-segmented-control calibration-liquid-control grid h-10 w-10 shrink-0 place-items-center rounded-full disabled:opacity-30" {...props}>{children}</button>;
+}
+
+function LiquidSelect({ children, ...props }) {
+  return <span className="calibration-liquid-surface calibration-glass-select relative mt-1 block">
+    <select {...props}>{children}</select>
+    <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/65" />
+  </span>;
 }
 
 export default function SpaceCalibrationEditor({ zone, onClose, onSaved, renderMap }) {
@@ -108,11 +115,11 @@ export default function SpaceCalibrationEditor({ zone, onClose, onSaved, renderM
   return createPortal(
     <div className="fixed inset-0 z-[1100] bg-black/85 p-2 sm:p-4">
       <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="calibration-title" tabIndex={-1} onKeyDown={handleKey}
-        className="mx-auto flex h-full max-w-[1600px] flex-col overflow-hidden rounded-lg border border-white/20 bg-[#141414] text-white shadow-2xl">
+        className="calibration-liquid-dialog mx-auto flex h-full max-w-[1600px] flex-col overflow-hidden rounded-lg text-white shadow-2xl">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/15 px-4 py-3">
           <div><h2 id="calibration-title" className="text-lg font-semibold">Calibracion de zona {zone.id}</h2><p className="text-xs text-white/60">{spaces.length}/{codes.length} espacios vinculados{dirty ? " · Cambios sin guardar" : ""}</p></div>
           <div className="flex gap-2">
-            <button disabled={busy || !editor || editor.image_id !== Number(imageId) || draft.length > 0} onClick={save} className="flex items-center gap-2 rounded-md bg-emerald-400 px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"><Save size={16} />{busy ? "Guardando..." : "Guardar"}</button>
+            <button disabled={busy || !editor || editor.image_id !== Number(imageId) || draft.length > 0} onClick={save} className="liquid-segmented-control calibration-liquid-control calibration-liquid-save flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold disabled:opacity-40"><Save size={16} />{busy ? "Guardando..." : "Guardar"}</button>
             <Tool label="Cerrar calibracion" onClick={close} disabled={busy}><X size={18} /></Tool>
           </div>
         </header>
@@ -120,19 +127,19 @@ export default function SpaceCalibrationEditor({ zone, onClose, onSaved, renderM
         <div className="grid min-h-0 flex-1 grid-rows-[auto_1fr] overflow-auto md:grid-cols-[280px_minmax(0,1fr)] md:grid-rows-1">
           <aside className="space-y-4 overflow-auto border-b border-white/15 p-4 md:border-b-0 md:border-r">
             <label className="block text-sm">Foto de referencia
-              <select aria-label="Foto de referencia" value={imageId} disabled={busy} onChange={(event) => {
+              <LiquidSelect aria-label="Foto de referencia" value={imageId} disabled={busy} onChange={(event) => {
                 if ((dirty || draft.length) && !window.confirm("¿Cambiar la foto y descartar los cambios sin guardar?")) return;
                 setEditor(null); setImageId(event.target.value);
-              }} className="mt-1 w-full min-w-0 rounded-md border border-white/20 bg-[#202020] p-2 text-xs">
+              }}>
                 <option value="" disabled>Seleccionar imagen</option>
                 {images.map((row) => <option key={row.id_imagen} value={row.id_imagen}>#{row.id_imagen} · {row.original_filename || "Imagen"}</option>)}
-              </select>
+              </LiquidSelect>
             </label>
             <p className="text-xs text-white/65">Zona asignada al guardar: {zone.id}{editor?.zone_code && editor.zone_code !== zone.id ? ` (actual: ${editor.zone_code})` : ""}</p>
             <label className="block text-sm">Espacio
-              <select aria-label="Espacio" value={selected} onChange={(event) => selectSpace(event.target.value)} className="mt-1 w-full rounded-md border border-white/20 bg-[#202020] p-2">
+              <LiquidSelect aria-label="Espacio" value={selected} onChange={(event) => selectSpace(event.target.value)}>
                 {codes.map((code) => <option key={code}>{code}</option>)}
-              </select>
+              </LiquidSelect>
             </label>
             <div className="flex flex-wrap items-center gap-2">
               <Tool label="Confirmar cuatro esquinas" onClick={saveDraft} disabled={draft.length !== 4}><Check size={18} /></Tool>
@@ -140,13 +147,13 @@ export default function SpaceCalibrationEditor({ zone, onClose, onSaved, renderM
               <Tool label="Quitar poligono seleccionado" onClick={() => { setSpaces(spaces.filter((s) => s.code !== selected)); setDraft([]); setDirty(true); }} disabled={!spaces.some((s) => s.code === selected)}><Trash2 size={18} /></Tool>
               <span className="text-xs text-white/65">{draft.length}/4 esquinas</span>
             </div>
-            <details><summary className="cursor-pointer text-sm">Referencia del plano</summary><div className="mt-2 overflow-auto">{renderMap?.(selected, selectSpace)}</div></details>
-            <details><summary className="cursor-pointer text-sm">Reutilizar calibracion</summary>
-              <select aria-label="Calibracion de referencia" value={referenceId} onChange={(event) => setReferenceId(event.target.value)} className="my-2 w-full rounded-md border border-white/20 bg-[#202020] p-2 text-xs">
+            <details className="calibration-liquid-surface calibration-glass-disclosure"><summary><span>Referencia del plano</span><ChevronDown aria-hidden="true" className="h-4 w-4" /></summary><div className="mt-3 overflow-auto">{renderMap?.(selected, selectSpace)}</div></details>
+            <details className="calibration-liquid-surface calibration-glass-disclosure"><summary><span>Reutilizar calibracion</span><ChevronDown aria-hidden="true" className="h-4 w-4" /></summary>
+              <LiquidSelect aria-label="Calibracion de referencia" value={referenceId} onChange={(event) => setReferenceId(event.target.value)}>
                 <option value="">Seleccionar referencia</option>
                 {images.filter((row) => row.id_imagen !== Number(imageId)).map((row) => <option key={row.id_imagen} value={row.id_imagen}>#{row.id_imagen} · {row.original_filename || "Imagen"}</option>)}
-              </select>
-              <button disabled={!referenceId || busy} onClick={copyReference} className="flex items-center gap-2 text-sm disabled:opacity-40"><Copy size={16} />Cargar como borrador</button>
+              </LiquidSelect>
+              <button disabled={!referenceId || busy} onClick={copyReference} className="liquid-segmented-control calibration-liquid-control mt-2 flex items-center gap-2 rounded-full px-3 py-2 text-sm disabled:opacity-40"><Copy size={16} />Cargar como borrador</button>
             </details>
           </aside>
           <div className="flex min-h-[420px] min-w-0 flex-col">
