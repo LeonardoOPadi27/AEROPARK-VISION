@@ -1,14 +1,16 @@
 # AeroPark Vision Mobile
 
-Base mobile creada con Expo para el usuario final de Tecsup.
+App Expo para estudiantes. Consume la API desplegada por defecto;
+`EXPO_PUBLIC_API_URL` permite apuntar a un backend local.
 
-## Que incluye ahora
+## Funciones
 
-- Inicio centrado en disponibilidad por 3 zonas.
-- Pantalla de espacios con codigos `A-001` y `B-001`.
-- Flujo real para marcar `Estoy estacionado aqui` y `Liberar espacio`.
-- Historial y perfil como primeras bases.
-- Consumo del backend en `/mobile/parking-overview`.
+- Registro e inicio de sesion de estudiante.
+- Disponibilidad por zonas A y B con leyenda de colores.
+- Ocupacion, confirmacion y liberacion manual de un espacio.
+- Recordatorios locales si el administrador los habilita y el dispositivo
+  permite notificaciones.
+- Perfil con ultimas revisiones.
 
 ## Como ejecutarlo
 
@@ -17,17 +19,11 @@ cd mobile
 npm start
 ```
 
-Si vas a probarlo en telefono fisico, define la URL del backend antes de iniciar:
+Abre el codigo QR en Expo Go. Si vas a probar un backend local desde un
+telefono fisico, define una IP accesible desde la misma red:
 
 ```bash
 EXPO_PUBLIC_API_URL=http://TU_IP_LOCAL:8000 npm start
-```
-
-## Credenciales de prueba
-
-```txt
-Correo: alexis@test.com
-Contraseña: 123456
 ```
 
 Tambien puedes usar:
@@ -38,6 +34,18 @@ npm run android
 npm run web
 ```
 
-## Siguiente paso recomendado
+## APK de prueba
 
-Conectar autenticacion real y notificaciones para recordar al usuario confirmar si el espacio sigue ocupado o ya fue liberado.
+El perfil `preview` de `eas.json` genera un APK instalable. Requiere iniciar
+sesion en Expo y configurar el proyecto EAS una vez:
+
+```bash
+npx eas-cli login
+npx eas-cli build:configure
+npx eas-cli build --platform android --profile preview
+```
+
+El perfil `production` genera un AAB para Google Play. El APK aun no se ha
+generado ni probado en dispositivo; valida registro, avisos y ocupacion antes
+de distribuirlo. En Android, Expo Go permite probar notificaciones locales,
+pero no se usan notificaciones push remotas.

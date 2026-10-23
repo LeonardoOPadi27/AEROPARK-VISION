@@ -9,7 +9,7 @@ from app.schemas.usuario_schema import (
     UsuarioSessionResponse,
 )
 from app.services.auth_service import create_user, authenticate_user
-from app.core.security import create_access_token, get_current_user
+from app.core.security import create_access_token, get_current_user, is_admin
 from app.config.database import get_db
 from app.models.usuario import Usuario
 
@@ -51,10 +51,13 @@ def login(user: UsuarioLogin, db: Session = Depends(get_db)):
             "correo": db_user.correo,
             "estado": db_user.estado,
             "id_rol": db_user.id_rol,
+            "is_admin": is_admin(db_user),
         },
     }
 
 
 @router.get("/me", response_model=UsuarioSessionResponse)
 def me(current_user: Usuario = Depends(get_current_user)):
-    return current_user
+    return UsuarioSessionResponse.model_validate(current_user).model_copy(
+        update={"is_admin": is_admin(current_user)}
+    )

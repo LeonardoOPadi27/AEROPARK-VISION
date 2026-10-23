@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -27,6 +27,16 @@ def _serialize_report(report: ReporteEspacioMovil) -> dict:
         "expires_at": report.fecha_expiracion.isoformat(),
         "confirmation_due_at": report.fecha_confirmacion_requerida.isoformat(),
     }
+
+
+def _client_utc(value: str | datetime | None) -> str | None:
+    if value is None:
+        return None
+    raw = value if isinstance(value, str) else value.isoformat()
+    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _load_reports(db: Session) -> dict:
@@ -140,11 +150,11 @@ def _build_zone_payload(
             reported_user_id = None
             reported_user_name = None
             expires_at = None
+            confirmation_due_at = None
 
             if manual_report:
                 status = "user_occupied"
                 estimated_hours = manual_report.get("estimated_hours")
-                user_confirmed_at = manual_report.get("started_at")
                 owns_report = manual_report.get("user_id") == viewer_id
                 if include_all_user_details or owns_report:
                     reported_user_id = manual_report.get("user_id")
@@ -153,9 +163,12 @@ def _build_zone_payload(
                 confirmation_due_at = manual_report.get("confirmation_due_at") or expires_at
                 if confirmation_due_at:
                     try:
-                        confirmation_required = (
-                            datetime.fromisoformat(confirmation_due_at) <= datetime.utcnow()
+                        due_at = datetime.fromisoformat(
+                            confirmation_due_at.replace("Z", "+00:00")
                         )
+                        if due_at.tzinfo is None:
+                            due_at = due_at.replace(tzinfo=timezone.utc)
+                        confirmation_required = due_at <= datetime.now(timezone.utc)
                     except ValueError:
                         confirmation_required = False
 
@@ -170,7 +183,16 @@ def _build_zone_payload(
                     "user_confirmed_at": user_confirmed_at,
                     "reported_user_id": reported_user_id,
                     "reported_user_name": reported_user_name,
-                    "expires_at": expires_at,
+                    "expires_at": (
+                        _client_utc(expires_at)
+                        if manual_report and (include_all_user_details or owns_report)
+                        else None
+                    ),
+                    "confirmation_due_at": (
+                        _client_utc(confirmation_due_at)
+                        if manual_report and (include_all_user_details or owns_report)
+                        else None
+                    ),
                     "confirmation_required": confirmation_required,
                 }
             )
@@ -219,7 +241,7 @@ def _build_zone_payload(
                 "mapping_source": mapping.get("source"),
                 "unmatched_detections": mapping.get("unmatched_detections", 0),
                 "image_id": latest_analysis.get("id_imagen"),
-                "updated_at": latest_analysis.get("fecha_analisis"),
+                "updated_at": _client_utc(latest_analysis.get("fecha_analisis")),
                 "occupancy_basis": (
                     "polygon_map" if mapped_by_code else "aggregate_vehicle_detection"
                     if analysis_available
@@ -293,7 +315,7 @@ def get_mobile_parking_overview(
 
     return {
         "updated_at": (
-            latest_analysis.fecha_analisis.isoformat()
+            _client_utc(latest_analysis.fecha_analisis)
             if latest_analysis and latest_analysis.fecha_analisis
             else None
         ),
@@ -313,6 +335,7 @@ def get_mobile_parking_overview(
         "free_spaces": free_spaces,
         "occupied_spaces": occupied_spaces,
         "zones": zones,
+        "mobile_settings": get_mobile_settings(db),
     }
 
 
@@ -343,6 +366,13 @@ def occupy_space_manually(
         raise HTTPException(status_code=404, detail="Espacio no encontrado.")
     if space_code in reports:
         raise HTTPException(status_code=409, detail="El espacio ya está marcado como ocupado.")
+    zone_id = zone_context["zone_id"]
+    mapped_by_code = {
+        space["code"]: space
+        for space in (_get_latest_analysis_by_zone(db).get(zone_id, {}).get("slot_mapping") or {}).get("spaces", [])
+    }
+    if mapped_by_code.get(space_code, {}).get("status") == "occupied":
+        raise HTTPException(status_code=409, detail="El espacio figura ocupado en la última imagen.")
     if any(report.get("user_id") == user_id for report in reports.values()):
         raise HTTPException(status_code=409, detail="El usuario ya tiene un espacio activo.")
     started_at = datetime.utcnow()
@@ -394,9 +424,9 @@ def occupy_space_manually(
         "estimated_hours": estimated_hours,
         "user_id": user_id,
         "user_name": user_name,
-        "started_at": started_at.isoformat(),
-        "expires_at": expires_at.isoformat(),
-        "confirmation_due_at": confirmation_due_at.isoformat(),
+        "started_at": _client_utc(started_at),
+        "expires_at": _client_utc(expires_at),
+        "confirmation_due_at": _client_utc(confirmation_due_at),
     }
 
 
@@ -452,3 +482,35 @@ def release_space_manually(
     db.delete(existing_row)
     db.commit()
     return {"code": space_code, "status": "free"}
+
+
+def confirm_space_manually(db: Session, space_code: str, requesting_user_id: int) -> dict:
+    space_code = space_code.strip().upper()
+    report = db.query(ReporteEspacioMovil).filter_by(codigo_espacio=space_code).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="No hay ocupación activa en este espacio.")
+    if report.id_usuario != requesting_user_id:
+        raise HTTPException(status_code=403, detail="Solo el ocupante puede confirmar este espacio.")
+    now = datetime.utcnow()
+    if report.fecha_confirmacion_requerida > now:
+        raise HTTPException(status_code=409, detail="La confirmación aún no es necesaria.")
+
+    next_due_at = now + timedelta(
+        hours=get_mobile_settings(db)["pending_confirmation_after_hours"]
+    )
+    report.fecha_confirmacion_requerida = next_due_at
+    db.add(_build_event({
+        "event_type": "confirm",
+        "space_code": report.codigo_espacio,
+        "zone_id": report.codigo_zona,
+        "zone_title": report.titulo_zona,
+        "user_id": report.id_usuario,
+        "user_name": report.nombre_usuario,
+        "estimated_hours": report.horas_estimadas,
+        "started_at": report.fecha_inicio,
+        "expires_at": report.fecha_expiracion,
+        "confirmation_due_at": next_due_at,
+        "occurred_at": now,
+    }))
+    db.commit()
+    return {"code": space_code, "status": "user_occupied", "confirmation_due_at": _client_utc(next_due_at)}

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 from app.config.database import get_db
-from app.core.security import get_current_user, require_admin
+from app.core.security import require_admin
 from app.models.usuario import Usuario
 from app.services.parking_space_service import get_latest_parking_spaces
 from app.services.space_calibration_service import get_calibration_editor, save_calibration
@@ -39,6 +39,6 @@ def update_calibration(image_id: int, payload: CalibrationRequest,
 @router.get("/latest")
 def latest_parking_spaces(
     db: Session = Depends(get_db),
-    _: Usuario = Depends(get_current_user),
+    _: Usuario = Depends(require_admin),
 ):
     return get_latest_parking_spaces(db)

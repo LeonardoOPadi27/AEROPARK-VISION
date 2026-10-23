@@ -1,11 +1,11 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import AppButton from "../components/AppButton";
 import GlassCard from "../components/GlassCard";
 import SectionHeader from "../components/SectionHeader";
 import { colors, radii, spacing } from "../theme";
 
 export default function ProfileScreen({
-  apiBaseUrl,
+  remindersEnabled,
   onRefresh,
   refreshing,
   user,
@@ -26,10 +26,15 @@ export default function ProfileScreen({
       <GlassCard>
         <Text style={styles.name}>{user?.nombres ?? "Usuario Tecsup"}</Text>
         <Text style={styles.meta}>
-          {user?.correo ?? "Sin correo"} · Notificaciones activas para recordatorios
-          de salida.
+          {user?.correo ?? "Sin correo"}
         </Text>
-        <Text style={styles.endpoint}>API: {apiBaseUrl}</Text>
+        <Text style={styles.endpoint}>
+          {Platform.OS === "web"
+            ? "Los recordatorios locales funcionan en la app para telefono."
+            : remindersEnabled
+            ? "Recordatorios disponibles si autorizas las notificaciones del dispositivo."
+            : "Recordatorios desactivados por el administrador."}
+        </Text>
         <AppButton
           label={refreshing ? "Actualizando..." : "Actualizar disponibilidad"}
           onPress={onRefresh}

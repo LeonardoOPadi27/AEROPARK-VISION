@@ -4,17 +4,22 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.config.database import Base
+from app.config.database import Base, get_db
 from app.core.security import create_access_token, get_current_user
+from app.main import app
 from app.models import Rol, Usuario
+from app.models.reporte_espacio_movil import ReporteEspacioMovil
+from app.routes import auth_routes
 from app.services import analysis_service
 from app.services.mobile_parking_service import (
     _build_zone_payload,
+    confirm_space_manually,
     get_mobile_space_events,
     occupy_space_manually,
     release_space_manually,
@@ -56,7 +61,60 @@ class SecurityAndParkingTests(unittest.TestCase):
         self.db.commit()
 
     def tearDown(self):
+        app.dependency_overrides.clear()
         self.db.close()
+
+    def test_public_registration_creates_non_admin_and_cannot_use_admin_routes(self):
+        app.dependency_overrides[get_db] = lambda: self.db
+        client = TestClient(app)
+        with patch.object(auth_routes, "allow_public_registration", True):
+            response = client.post("/auth/register", json={
+                "nombres": "Estudiante", "apellidos": "Prueba",
+                "correo": "Student@Example.test", "contrasena": "password123",
+            })
+        self.assertEqual(response.status_code, 200)
+        student = self.db.query(Usuario).filter_by(correo="student@example.test").one()
+        self.assertEqual(student.rol.nombre, "usuario")
+        token = client.post("/auth/login", json={
+            "correo": "student@example.test", "contrasena": "password123",
+        }).json()
+        self.assertFalse(token["user"]["is_admin"])
+        auth = {"Authorization": f"Bearer {token['access_token']}"}
+        self.assertEqual(client.get("/auth/me", headers=auth).json()["is_admin"], False)
+        self.assertEqual(client.get("/images", headers=auth).status_code, 403)
+        self.assertEqual(client.get("/analysis", headers=auth).status_code, 403)
+        self.assertEqual(client.get("/mobile/reviews", headers=auth).status_code, 200)
+        self.assertEqual(client.get("/mobile/parking-overview", headers=auth).status_code, 200)
+
+    def test_confirmation_requires_owner_and_resets_due_time(self):
+        occupy_space_manually(self.db, "A-001", 2, self.owner.id_usuario, "Owner Test")
+        report = self.db.get(ReporteEspacioMovil, "A-001")
+        from datetime import datetime, timedelta
+        report.fecha_confirmacion_requerida = datetime.utcnow() - timedelta(minutes=1)
+        self.db.commit()
+        with self.assertRaises(HTTPException) as context:
+            confirm_space_manually(self.db, "A-001", self.other.id_usuario)
+        self.assertEqual(context.exception.status_code, 403)
+        result = confirm_space_manually(self.db, "A-001", self.owner.id_usuario)
+        self.assertEqual(result["status"], "user_occupied")
+        self.assertTrue(result["confirmation_due_at"].endswith("Z"))
+        self.assertFalse(_build_zone_payload({"A-001": {
+            "user_id": self.owner.id_usuario,
+            "confirmation_due_at": result["confirmation_due_at"],
+        }}, {}, viewer_id=self.owner.id_usuario)[0]["spaces"][0]["confirmation_required"])
+        self.assertEqual([e["event_type"] for e in get_mobile_space_events(self.db)], ["occupy", "confirm"])
+
+    def test_cannot_claim_space_detected_as_occupied(self):
+        mapping = {"spaces": [{"code": "A-001", "status": "occupied"}]}
+        with patch(
+            "app.services.mobile_parking_service._get_latest_analysis_by_zone",
+            return_value={"A": {"slot_mapping": mapping}},
+        ):
+            with self.assertRaises(HTTPException) as context:
+                occupy_space_manually(
+                    self.db, "A-001", 2, self.owner.id_usuario, "Owner Test"
+                )
+        self.assertEqual(context.exception.status_code, 409)
 
     def test_inactive_user_token_is_rejected(self):
         self.owner.estado = False

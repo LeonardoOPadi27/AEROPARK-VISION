@@ -285,6 +285,8 @@ export default function ParkingPhysicalMap({ zone, onSelectSpace }) {
       </ScrollView>
 
       <View style={styles.legend}>
+        <LegendDot color={statusStyles.free.backgroundColor} label="Libre" />
+        <LegendDot color={statusStyles.occupied.backgroundColor} label="Ocupado" />
         <LegendDot color={statusStyles.unknown.backgroundColor} label="Sin ubicar" />
         <LegendDot color={statusStyles.user_occupied.backgroundColor} label="App" />
         <LegendDot color={statusStyles.pending.backgroundColor} label="Pendiente" />

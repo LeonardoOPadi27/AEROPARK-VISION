@@ -16,6 +16,8 @@ export default function SpacesScreen({
   currentUserId,
   onOccupySpace,
   onReleaseSpace,
+  actionError,
+  mobileSettings,
 }) {
   const [selectedSpace, setSelectedSpace] = useState(null);
   const [selectedHours, setSelectedHours] = useState(2);
@@ -81,13 +83,19 @@ export default function SpacesScreen({
         selectedHours={selectedHours}
         onChangeHours={setSelectedHours}
         onClose={() => setSelectedSpace(null)}
-        onOccupy={(spaceCode) => {
-          onOccupySpace(spaceCode, selectedHours);
-          setSelectedSpace(null);
+        error={actionError}
+        mobileSettings={mobileSettings}
+        onOccupy={async (spaceCode) => {
+          try {
+            await onOccupySpace(spaceCode, selectedHours);
+            setSelectedSpace(null);
+          } catch { /* Keep the sheet open to show the API error. */ }
         }}
-        onRelease={(spaceCode) => {
-          onReleaseSpace(spaceCode);
-          setSelectedSpace(null);
+        onRelease={async (spaceCode) => {
+          try {
+            await onReleaseSpace(spaceCode);
+            setSelectedSpace(null);
+          } catch { /* Keep the sheet open to show the API error. */ }
         }}
       />
     </>

@@ -8,8 +8,10 @@
 4. Configura `YOLO_WEIGHTS_URL` con una URL accesible al archivo `best.pt`.
 5. Configura las variables de R2/S3: `S3_ENDPOINT_URL`, `S3_BUCKET`,
    `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` y `S3_PUBLIC_BASE_URL`.
-6. Conserva `ENVIRONMENT=production` y no habilites
-   `ALLOW_PUBLIC_REGISTRATION` salvo que el registro abierto sea necesario.
+6. Conserva `ENVIRONMENT=production`. Para permitir el alta desde la app
+   estudiantil, configura `ALLOW_PUBLIC_REGISTRATION=true`. El registro solo
+   crea cuentas de rol `usuario`; las rutas web administrativas exigen rol
+   `administrador`.
 
 El contenedor ejecuta `alembic upgrade head` antes de iniciar FastAPI y expone
 `/health` para la comprobacion del servicio.
@@ -44,3 +46,16 @@ curl https://<backend-publico>/health
 Despues, valida login, carga de imagen, analisis y vista movil desde el
 frontend. Las imagenes y los JSON operativos deben usar R2/S3 en produccion;
 el almacenamiento local del contenedor no es persistente.
+
+## 5. App del estudiante
+
+La app Expo utiliza `https://aeropark-api.onrender.com` por defecto. Para
+probarla con Expo Go, ejecuta `npx expo start` desde `mobile/` y escanea el QR.
+El registro de estudiantes requiere `ALLOW_PUBLIC_REGISTRATION=true` en el
+servicio Render; revisa el valor efectivo en el panel de Render, porque cambiar
+`render.yaml` no modifica necesariamente un servicio creado manualmente.
+
+Para generar un APK instalable en Android, usa el perfil `preview` de
+[`mobile/eas.json`](mobile/eas.json) y sigue [`mobile/README.md`](mobile/README.md).
+El build de EAS y las notificaciones locales deben validarse en un telefono
+antes de considerarlos entregados.

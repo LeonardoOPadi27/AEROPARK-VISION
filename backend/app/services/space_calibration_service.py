@@ -267,6 +267,7 @@ def assign_detections(calibration: dict, detections: list[dict]) -> dict:
                 touched.append(code)
         if len(inside) == 1:
             occupied.add(inside[0])
+            uncertain.update(code for code in touched if code != inside[0])
         else:
             uncertain.update(inside + touched)
             unmatched += 1

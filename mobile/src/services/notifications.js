@@ -13,35 +13,48 @@ Notifications.setNotificationHandler({
 let initialized = false;
 
 export async function prepareNotifications() {
-  if (Platform.OS === "web" || initialized) return;
+  if (Platform.OS === "web") return false;
 
-  initialized = true;
+  if (!initialized) {
+    initialized = true;
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("parking-reminders", {
+        name: "Recordatorios de estacionamiento",
+        importance: Notifications.AndroidImportance.HIGH,
+      });
+    }
+  }
   const settings = await Notifications.getPermissionsAsync();
-  if (!settings.granted) {
-    await Notifications.requestPermissionsAsync();
-  }
-
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("parking-reminders", {
-      name: "Parking reminders",
-      importance: Notifications.AndroidImportance.HIGH,
-    });
-  }
+  return settings.granted || (await Notifications.requestPermissionsAsync()).granted;
 }
 
-export async function scheduleParkingReminder(spaceCode, hours) {
-  if (Platform.OS === "web") return null;
+export async function cancelParkingReminder(spaceCode) {
+  if (Platform.OS === "web") return;
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  await Promise.all(scheduled
+    .filter((item) => item.content?.data?.spaceCode === spaceCode)
+    .map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier)));
+}
 
-  return Notifications.scheduleNotificationAsync({
+export async function scheduleParkingReminder(spaceCode, dueAt) {
+  if (Platform.OS === "web" || !dueAt) return false;
+  await cancelParkingReminder(spaceCode);
+  if (!(await prepareNotifications())) return false;
+
+  const seconds = Math.max(Math.ceil((new Date(dueAt).getTime() - Date.now()) / 1000), 60);
+  if (!Number.isFinite(seconds)) return false;
+
+  await Notifications.scheduleNotificationAsync({
     content: {
       title: "Confirma tu espacio",
-      body: `Tu tiempo estimado en ${spaceCode} ha terminado. Abre la app para confirmar si sigue ocupado.`,
+      body: `Revisa ${spaceCode} y confirma si sigue ocupado.`,
       data: { spaceCode },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: Math.max(hours * 3600, 60),
+      seconds,
       channelId: "parking-reminders",
     },
   });
+  return true;
 }

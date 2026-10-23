@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.core.security import get_current_user
+from app.core.security import require_admin
 from app.models.usuario import Usuario
 from app.services.image_service import (
     get_latest_uploaded_image,
@@ -20,7 +20,7 @@ def upload_image(
     file: UploadFile = File(...),
     zone_code: str | None = Form(default=None),
     db: Session = Depends(get_db),
-    _: Usuario = Depends(get_current_user),
+    _: Usuario = Depends(require_admin),
 ):
     payload, source_path, remove_source_after_processing = save_uploaded_image(
         db,
@@ -37,10 +37,10 @@ def upload_image(
 
 
 @router.get("")
-def list_images(db: Session = Depends(get_db), _: Usuario = Depends(get_current_user)):
+def list_images(db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
     return get_uploaded_images(db)
 
 
 @router.get("/latest")
-def latest_image(db: Session = Depends(get_db), _: Usuario = Depends(get_current_user)):
+def latest_image(db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
     return get_latest_uploaded_image(db)

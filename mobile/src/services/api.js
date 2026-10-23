@@ -31,7 +31,9 @@ async function request(path, options = {}) {
       // Keep the original response text when it is not JSON.
     }
 
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();
@@ -60,7 +62,7 @@ export function getParkingOverview() {
 }
 
 export function getAnalysisList() {
-  return request("/analysis");
+  return request("/mobile/reviews");
 }
 
 export function occupySpace(spaceCode, estimatedHours) {
@@ -74,4 +76,8 @@ export function releaseSpace(spaceCode) {
   return request(`/mobile/spaces/${spaceCode}/release`, {
     method: "POST",
   });
+}
+
+export function confirmSpace(spaceCode) {
+  return request(`/mobile/spaces/${spaceCode}/confirm`, { method: "POST" });
 }

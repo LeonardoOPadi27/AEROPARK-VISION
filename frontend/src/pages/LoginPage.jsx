@@ -31,6 +31,10 @@ export default function LoginPage({ onLoginSuccess }) {
 
     try {
       const data = await login({ correo, contrasena });
+      if (!data.user?.is_admin) {
+        setError("Esta página es solo para administradores. Usa la app móvil para estudiantes.");
+        return;
+      }
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("token_type", data.token_type);
       onLoginSuccess?.();

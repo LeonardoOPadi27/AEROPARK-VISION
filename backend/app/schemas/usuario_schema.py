@@ -51,3 +51,4 @@ class UsuarioResponse(BaseModel):
 
 class UsuarioSessionResponse(UsuarioResponse):
     id_rol: int | None = None
+    is_admin: bool = False

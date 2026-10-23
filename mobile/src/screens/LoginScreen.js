@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import AppButton from "../components/AppButton";
 import GlassCard from "../components/GlassCard";
 import SectionHeader from "../components/SectionHeader";
@@ -9,8 +17,8 @@ export default function LoginScreen({ onSubmit, onRegister, submitting, error })
   const [mode, setMode] = useState("login");
   const [nombres, setNombres] = useState("");
   const [apellidos, setApellidos] = useState("");
-  const [correo, setCorreo] = useState("alexis@test.com");
-  const [contrasena, setContrasena] = useState("123456");
+  const [correo, setCorreo] = useState("");
+  const [contrasena, setContrasena] = useState("");
   const isRegisterMode = mode === "register";
 
   const handleSubmit = () => {
@@ -23,7 +31,15 @@ export default function LoginScreen({ onSubmit, onRegister, submitting, error })
   };
 
   return (
-    <View style={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.frame}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <SectionHeader
         eyebrow="AeroPark Vision"
         title={isRegisterMode ? "Crear cuenta" : "Acceso mobile"}
@@ -120,13 +136,15 @@ export default function LoginScreen({ onSubmit, onRegister, submitting, error })
           style={styles.primaryButton}
         />
       </GlassCard>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  frame: { flex: 1, backgroundColor: colors.background },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingTop: spacing.section,
     paddingHorizontal: spacing.screen,
     justifyContent: "center",

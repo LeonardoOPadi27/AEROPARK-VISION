@@ -35,6 +35,9 @@ export default function MySpaceScreen({
   user,
   mySpace,
   onReleaseSpace,
+  onConfirmSpace,
+  actionError,
+  mobileSettings,
   onOpenSpaces,
 }) {
   const routeHint = buildRouteHint(mySpace);
@@ -77,9 +80,18 @@ export default function MySpaceScreen({
             </View>
 
             <AppButton
-              label="Liberar espacio"
-              onPress={() => onReleaseSpace(mySpace.space.code)}
+              label="Confirmar que sigo estacionado"
+              onPress={() => onConfirmSpace(mySpace.space.code)}
+              disabled={!mySpace.space.confirmation_required}
               style={styles.primaryButton}
+            />
+            {actionError ? <Text style={styles.actionError}>{actionError}</Text> : null}
+            <AppButton
+              label="Liberar espacio"
+              onPress={() => onReleaseSpace(mySpace.space.code).catch(() => {})}
+              disabled={!mobileSettings?.manual_release_enabled}
+              variant="secondary"
+              style={styles.secondaryButton}
             />
           </GlassCard>
 
@@ -107,14 +119,6 @@ export default function MySpaceScreen({
             />
           </GlassCard>
 
-          <GlassCard>
-            <Text style={styles.cardTitle}>Navegacion futura</Text>
-            <Text style={styles.cardBody}>
-              Si luego agregamos coordenadas o un plano interno, esta pestaña
-              podra abrir una ruta hacia un espacio libre usando Google Maps o
-              una guia del campus.
-            </Text>
-          </GlassCard>
         </>
       )}
     </ScrollView>
@@ -171,6 +175,8 @@ const styles = StyleSheet.create({
   primaryButton: {
     marginTop: 20,
   },
+  secondaryButton: { marginTop: 10 },
+  actionError: { color: colors.occupied, marginTop: 12, fontSize: 13 },
   cardTitle: {
     color: colors.text,
     fontSize: 18,

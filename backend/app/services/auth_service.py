@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.models.usuario import Usuario
+from app.models.rol import Rol
 from app.core.security import verify_password, hash_password
 
 
@@ -15,11 +16,18 @@ def create_user(db: Session, user):
     if existing_user:
         raise HTTPException(status_code=409, detail="El correo ya esta registrado")
 
+    student_role = db.query(Rol).filter(Rol.nombre == "usuario").first()
+    if student_role is None:
+        student_role = Rol(nombre="usuario", estado=True)
+        db.add(student_role)
+        db.flush()
+
     new_user = Usuario(
         nombres=user.nombres.strip(),
         apellidos=user.apellidos.strip(),
         correo=correo,
-        contrasena=hash_password(user.contrasena)
+        contrasena=hash_password(user.contrasena),
+        id_rol=student_role.id_rol,
     )
     db.add(new_user)
     try:

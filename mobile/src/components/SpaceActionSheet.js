@@ -14,6 +14,8 @@ export default function SpaceActionSheet({
   onRelease,
   selectedHours,
   onChangeHours,
+  error,
+  mobileSettings,
 }) {
   if (!space) return null;
 
@@ -35,15 +37,17 @@ export default function SpaceActionSheet({
             {spaceCatalog[space.status]?.label ?? "Estado no disponible"}
           </Text>
           <Text style={styles.description}>
-            Marca manualmente que ya te estacionaste y define cuánto tiempo crees
-            quedarte. Luego la app podrá recordarte confirmar la salida.
+            {canReportOccupancy
+              ? "Marca tu espacio y el tiempo estimado de permanencia."
+              : "Consulta el estado actual de este espacio."}
           </Text>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {canReportOccupancy ? (
             <>
               <Text style={styles.label}>Tiempo estimado</Text>
               <View style={styles.optionsRow}>
-                {stayOptions.map((hours) => (
+                {stayOptions.filter((hours) => hours <= (mobileSettings?.max_estimated_hours ?? 24)).map((hours) => (
                   <ZonePill
                     key={hours}
                     label={`${hours} h`}
@@ -56,13 +60,18 @@ export default function SpaceActionSheet({
               <AppButton
                 label="Estoy estacionado aqui"
                 onPress={() => onOccupy(space.code)}
+                disabled={!mobileSettings?.manual_occupy_enabled}
                 style={styles.primaryButton}
               />
+              {!mobileSettings?.manual_occupy_enabled ? (
+                <Text style={styles.description}>El registro manual está desactivado.</Text>
+              ) : null}
             </>
           ) : isOwnedByCurrentUser ? (
             <AppButton
               label="Liberar espacio"
               onPress={() => onRelease(space.code)}
+              disabled={!mobileSettings?.manual_release_enabled}
               style={styles.primaryButton}
             />
           ) : (
@@ -147,4 +156,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
+  error: { color: colors.occupied, marginTop: 12, fontSize: 13 },
 });

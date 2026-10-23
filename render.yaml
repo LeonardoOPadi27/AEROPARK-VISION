@@ -10,7 +10,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: ALLOW_PUBLIC_REGISTRATION
-        value: "false"
+        value: "true"
       - key: ALLOW_MOCK_ANALYSIS
         value: "false"
       - key: DATABASE_URL

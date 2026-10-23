@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -14,11 +15,12 @@ import MySpaceScreen from "./src/screens/MySpaceScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import BottomNav from "./src/components/BottomNav";
-import { API_BASE_URL } from "./src/config";
+import AppButton from "./src/components/AppButton";
 import {
   getAnalysisList,
   getMe,
   getParkingOverview,
+  confirmSpace,
   login,
   occupySpace,
   registerUser,
@@ -27,7 +29,7 @@ import {
 } from "./src/services/api";
 import { clearSession, loadSession, saveSession } from "./src/services/session";
 import {
-  prepareNotifications,
+  cancelParkingReminder,
   scheduleParkingReminder,
 } from "./src/services/notifications";
 import { colors } from "./src/theme";
@@ -44,6 +46,8 @@ export default function App() {
   const [submittingLogin, setSubmittingLogin] = useState(false);
   const [sessionUser, setSessionUser] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const [mobileSettings, setMobileSettings] = useState({});
+  const [actionError, setActionError] = useState(null);
 
   const activeZone = zones.find((zone) => zone.id === activeZoneId) ?? zones[0] ?? null;
   const mySpace =
@@ -64,14 +68,13 @@ export default function App() {
     try {
       setLoading(true);
       setError(null);
-      const [overview, analysisItems] = await Promise.all([
-        getParkingOverview(),
-        getAnalysisList(),
-      ]);
+      const overview = await getParkingOverview();
+      const analysisItems = await getAnalysisList().catch(() => []);
       const enabledZones = (overview.zones ?? []).filter((zone) =>
         ["A", "B"].includes(zone.id),
       );
       setZones(enabledZones);
+      setMobileSettings(overview.mobile_settings ?? {});
       setActiveZoneId((currentZoneId) =>
         enabledZones.some((zone) => zone.id === currentZoneId)
           ? currentZoneId
@@ -79,6 +82,11 @@ export default function App() {
       );
       setHistoryItems(buildMobileHistoryItems(analysisItems));
     } catch (loadError) {
+      if (loadError.status === 401) {
+        await clearSession();
+        setAuthToken(null);
+        setSessionUser(null);
+      }
       setError(loadError.message);
     } finally {
       setLoading(false);
@@ -87,7 +95,6 @@ export default function App() {
 
   useEffect(() => {
     const bootstrap = async () => {
-      await prepareNotifications();
       const session = await loadSession();
       if (!session.token) {
         setAuthReady(true);
@@ -100,9 +107,14 @@ export default function App() {
         const user = await getMe();
         setSessionUser(user);
         await loadOverview();
-      } catch {
-        await clearSession();
-        setAuthToken(null);
+      } catch (bootstrapError) {
+        if ([401, 403].includes(bootstrapError.status)) {
+          await clearSession();
+          setAuthToken(null);
+        } else {
+          setSessionUser(session.user);
+          setError(bootstrapError.message);
+        }
       } finally {
         setAuthReady(true);
         setLoading(false);
@@ -120,7 +132,6 @@ export default function App() {
       setAuthToken(result.access_token);
       await saveSession(result.access_token, result.user);
       setSessionUser(result.user);
-      await prepareNotifications();
       await loadOverview();
     } catch {
       setAuthError("No se pudo iniciar sesión con esas credenciales.");
@@ -138,7 +149,6 @@ export default function App() {
       setAuthToken(result.access_token);
       await saveSession(result.access_token, result.user);
       setSessionUser(result.user);
-      await prepareNotifications();
       await loadOverview();
     } catch (registerError) {
       setAuthError(registerError.message || "No se pudo crear la cuenta.");
@@ -148,14 +158,39 @@ export default function App() {
   };
 
   const handleOccupySpace = async (spaceCode, durationHours) => {
-    await occupySpace(spaceCode, durationHours);
-    await scheduleParkingReminder(spaceCode, durationHours);
+    setActionError(null);
+    let result;
+    try { result = await occupySpace(spaceCode, durationHours); }
+    catch (error) { setActionError(error.message); throw error; }
     await loadOverview();
+    if (mobileSettings.reminders_enabled && Platform.OS !== "web") {
+      try {
+        const scheduled = await scheduleParkingReminder(spaceCode, result.confirmation_due_at);
+        if (!scheduled) setActionError("Activa las notificaciones del dispositivo para recibir recordatorios.");
+      } catch {
+        setActionError("El espacio se ocupó, pero no se pudo programar el recordatorio.");
+      }
+    }
   };
 
   const handleReleaseSpace = async (spaceCode) => {
-    await releaseSpace(spaceCode);
+    setActionError(null);
+    try { await releaseSpace(spaceCode); }
+    catch (error) { setActionError(error.message); throw error; }
     await loadOverview();
+    try { await cancelParkingReminder(spaceCode); } catch { /* The release already succeeded. */ }
+  };
+
+  const handleConfirmSpace = async (spaceCode) => {
+    setActionError(null);
+    let result;
+    try { result = await confirmSpace(spaceCode); }
+    catch (error) { setActionError(error.message); return; }
+    await loadOverview();
+    if (mobileSettings.reminders_enabled && Platform.OS !== "web") {
+      try { await scheduleParkingReminder(spaceCode, result.confirmation_due_at); }
+      catch { setActionError("Confirmado, pero no se pudo programar el siguiente recordatorio."); }
+    }
   };
 
   const handleLogout = async () => {
@@ -175,6 +210,8 @@ export default function App() {
     currentUserId: sessionUser?.id_usuario,
     onOccupySpace: handleOccupySpace,
     onReleaseSpace: handleReleaseSpace,
+    mobileSettings,
+    actionError,
   };
 
   if (!authReady || loading) {
@@ -209,10 +246,9 @@ export default function App() {
         <ExpoStatusBar style="light" />
         <View style={styles.centerState}>
           <Text style={styles.stateTitle}>No se pudo conectar la app mobile</Text>
-          <Text style={styles.stateText}>
-            Revisa la API en {API_BASE_URL} o define EXPO_PUBLIC_API_URL.
-          </Text>
+          <Text style={styles.stateText}>No se pudo obtener la disponibilidad.</Text>
           <Text style={styles.errorText}>{error}</Text>
+          <AppButton label="Reintentar" onPress={loadOverview} />
         </View>
       </SafeAreaView>
     );
@@ -232,12 +268,15 @@ export default function App() {
             user={sessionUser}
             mySpace={mySpace}
             onReleaseSpace={handleReleaseSpace}
+            onConfirmSpace={handleConfirmSpace}
+            mobileSettings={mobileSettings}
+            actionError={actionError}
             onOpenSpaces={() => setActiveTab("spaces")}
           />
         ) : null}
         {activeTab === "profile" ? (
           <ProfileScreen
-            apiBaseUrl={API_BASE_URL}
+            remindersEnabled={Boolean(mobileSettings.reminders_enabled)}
             onRefresh={loadOverview}
             refreshing={loading}
             user={sessionUser}

@@ -179,6 +179,8 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
                 "status": (
                     "ocupado manual"
                     if event.get("event_type") == "occupy"
+                    else "permanencia confirmada"
+                    if event.get("event_type") == "confirm"
                     else "liberado manual"
                 ),
                 "source": "usuario",
@@ -192,6 +194,8 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
                 "detail": (
                     "Registro manual desde la app mobile"
                     if event.get("event_type") == "occupy"
+                    else "Confirmacion desde la app mobile"
+                    if event.get("event_type") == "confirm"
                     else "Liberacion manual desde la app mobile"
                 ),
             }
