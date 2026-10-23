@@ -12,6 +12,7 @@ from app.services.analysis_service import serialize_analysis
 from app.services.image_zone_service import get_image_zone
 from app.services.parking_zone_config import ZONE_DEFINITIONS
 from app.services.settings_service import get_mobile_settings
+from app.services.zone_b_pair_service import is_pair_member
 
 
 def _serialize_report(report: ReporteEspacioMovil) -> dict:
@@ -77,13 +78,14 @@ def get_active_mobile_reports(db: Session) -> dict:
 
 
 def _get_latest_analysis(db: Session) -> AnalisisImagen | None:
-    return (
+    analyses = (
         db.query(AnalisisImagen)
         .join(ImagenCapturada)
         .filter(AnalisisImagen.estado == "completado_yolo")
         .order_by(ImagenCapturada.id_imagen.desc())
-        .first()
+        .all()
     )
+    return next((analysis for analysis in analyses if not is_pair_member(db, analysis.id_imagen)), None)
 
 
 def _get_latest_analysis_by_zone(db: Session) -> dict[str, dict]:
@@ -97,6 +99,8 @@ def _get_latest_analysis_by_zone(db: Session) -> dict[str, dict]:
 
     for analysis in analyses:
         if analysis.estado != "completado_yolo":
+            continue
+        if is_pair_member(db, analysis.id_imagen):
             continue
         zone = get_image_zone(analysis.imagen)
         zone_code = zone.get("zone_code") if zone else None

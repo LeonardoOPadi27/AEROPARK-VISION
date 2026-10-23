@@ -1,6 +1,9 @@
 import os
 from datetime import datetime, timedelta
 
+import cv2
+import numpy as np
+
 from fastapi import HTTPException
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, object_session
@@ -22,7 +25,9 @@ from app.services.space_calibration_service import (
     get_default_calibration,
     load_calibration,
     merge_calibrations,
+    get_zone_b_upper_calibration,
 )
+from app.services.zone_b_pair_service import is_pair_member, load_pair
 from PIL import Image
 
 
@@ -165,14 +170,16 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
         ],
     }
     db = object_session(analysis)
+    pair = load_pair(db, analysis.id_imagen) if db is not None and result["zone_code"] == "B" else None
     saved_calibration = load_calibration(db, analysis.id_imagen) if db is not None else None
     calibration = saved_calibration
     mapping_source = "manual_calibration" if saved_calibration else None
     if analysis_mode == "yolo" and image and result["zone_code"]:
         try:
             with Image.open(resolve_stored_image_path(image.ruta_archivo)) as source:
-                default_calibration = get_default_calibration(
-                    result["zone_code"], *source.size
+                default_calibration = (
+                    get_zone_b_upper_calibration(*source.size)
+                    if pair else get_default_calibration(result["zone_code"], *source.size)
                 )
             if default_calibration:
                 calibration = (
@@ -190,7 +197,106 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
         if len(vehicles) == (analysis.vehiculos_detectados or 0):
             result["slot_mapping"] = assign_detections(calibration, result["detections"])
             result["slot_mapping"]["source"] = mapping_source
+    if pair:
+        result["image_count"] = 2
+        result["paired_image_id"] = pair["lower_image_id"]
+        lower = db.get(ImagenCapturada, pair["lower_image_id"])
+        if analysis_mode == "yolo" and lower and lower.analisis and lower.analisis.estado == "completado_yolo":
+            _apply_zone_b_pair(result, serialize_analysis(lower.analisis), lower, db)
     return result
+
+
+def _detections_in_spaces(calibration: dict, detections: list[dict]) -> dict[str, dict]:
+    """Only vehicles centered in exactly one slot contribute to pair totals."""
+    width, height = calibration["image_width"], calibration["image_height"]
+    contours = {
+        item["code"]: np.asarray(item["polygon"], dtype=np.float32)
+        for item in calibration["spaces"]
+    }
+    selected = {}
+    for detection in detections:
+        x1, y1, x2, y2 = detection["bbox"]
+        center = ((x1 + x2) / (2 * width), (y1 + y2) / (2 * height))
+        matches = [code for code, polygon in contours.items()
+                   if cv2.pointPolygonTest(polygon, center, False) > 0]
+        if len(matches) == 1:
+            code = matches[0]
+            if code not in selected or detection["confidence"] > selected[code]["confidence"]:
+                selected[code] = detection
+    return selected
+
+
+def _apply_zone_b_pair(result: dict, lower_result: dict, lower_image: ImagenCapturada, db: Session) -> None:
+    if lower_result.get("slot_mapping") is None:
+        return
+    image = result["image_url"]
+    try:
+        with Image.open(resolve_stored_image_path(image)) as source:
+            upper_calibration = get_zone_b_upper_calibration(*source.size)
+        saved_upper = load_calibration(db, result["id_imagen"]) if db is not None else None
+        if saved_upper and saved_upper.get("zone_code") == "B":
+            upper_calibration = merge_calibrations(upper_calibration, saved_upper)
+        with Image.open(resolve_stored_image_path(lower_image.ruta_archivo)) as source:
+            lower_calibration = get_default_calibration("B", *source.size)
+        saved_lower = load_calibration(db, lower_image.id_imagen) if db is not None else None
+        if saved_lower and saved_lower.get("zone_code") == "B":
+            lower_calibration = merge_calibrations(lower_calibration, saved_lower)
+    except (OSError, ValueError):
+        return
+    lower_mapping = lower_result["slot_mapping"]
+    upper_mapping = assign_detections(upper_calibration, result["detections"])
+    by_code = {item["code"]: item for item in lower_mapping["spaces"]}
+    by_code.update({item["code"]: item for item in upper_mapping["spaces"]})
+    spaces = list(by_code.values())
+    capacity = get_zone_capacity("B") or 73
+    if len({item["code"] for item in spaces}) != capacity:
+        return
+    selected = {
+        **_detections_in_spaces(lower_calibration, lower_result["detections"]),
+        **_detections_in_spaces(upper_calibration, result["detections"]),
+    }
+    selected = {code: detection for code, detection in selected.items()
+                if by_code[code]["status"] == "occupied"}
+    occupied = sum(item["status"] == "occupied" for item in spaces)
+    free = sum(item["status"] == "free" for item in spaces)
+    unknown = capacity - occupied - free
+    result["slot_mapping"] = {
+        "spaces": spaces,
+        "calibrated_spaces": capacity,
+        "location_assignment_available": True,
+        "coverage_complete": unknown == 0,
+        "unmatched_detections": lower_mapping["unmatched_detections"],
+        "unknown_spaces": unknown,
+        "free_spaces": free,
+        "occupied_spaces": occupied,
+        "source": "zone_b_photo_pair",
+    }
+    result["detections"] = list(selected.values())
+    result["vehiculos_detectados"] = occupied
+    result["autos_detectados"] = sum(d["label"] == "car" for d in selected.values())
+    result["motocicletas_detectadas"] = sum(d["label"] == "motorcycle" for d in selected.values())
+    result["total_vehiculos"] = occupied
+    result["espacios_ocupados"] = occupied
+    result["espacios_libres"] = free
+    result["porcentaje_ocupacion"] = round(occupied / capacity * 100, 1)
+    result["precision_modelo"] = (
+        round(sum(d["confidence"] for d in selected.values()) / len(selected) * 100, 1)
+        if selected else 0
+    )
+    result["confidence_mean"] = result["precision_modelo"]
+    colors = {}
+    for detection in selected.values():
+        color = detection.get("color") or "Otro"
+        colors[color] = colors.get(color, 0) + 1
+    result["color_distribution"] = [
+        {"color": color, "cantidad": count}
+        for color, count in sorted(colors.items(), key=lambda item: item[1], reverse=True)
+    ]
+    result["vehicle_type_distribution"] = [
+        {"tipo": label, "cantidad": count}
+        for label, count in (("car", result["autos_detectados"]),
+                             ("motorcycle", result["motocicletas_detectadas"])) if count
+    ]
 
 
 def _get_analysis_vehicles(analysis: AnalisisImagen) -> list[VehiculoDetectado]:
@@ -312,7 +418,8 @@ def ensure_analysis_for_image(
 def get_analysis_list(db: Session) -> list[dict]:
     _mark_stale_pending_analyses(db)
     images = db.query(ImagenCapturada).order_by(ImagenCapturada.id_imagen.desc()).all()
-    return [serialize_analysis(image.analisis) for image in images if image.analisis]
+    return [serialize_analysis(image.analisis) for image in images
+            if image.analisis and not is_pair_member(db, image.id_imagen)]
 
 
 def get_latest_analysis(db: Session) -> dict:

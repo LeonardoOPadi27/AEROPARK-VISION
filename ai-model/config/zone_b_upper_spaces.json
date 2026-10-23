@@ -1,0 +1,26 @@
+{
+  "image": "DJI_20260312135940_0014_D.JPG",
+  "coordinate_system": "image_pixels",
+  "image_width": 5280,
+  "image_height": 3956,
+  "spaces": [
+    {"code": "B-001", "center": [2399, 2199], "half_size": [105, 160]},
+    {"code": "B-011", "center": [2625, 1851], "half_size": [150, 64]},
+    {"code": "B-012", "center": [2660, 2013], "half_size": [150, 64]},
+    {"code": "B-013", "center": [2691, 2172], "half_size": [150, 64]},
+    {"code": "B-039", "center": [3203, 1185], "half_size": [145, 62]},
+    {"code": "B-040", "center": [3238, 1327], "half_size": [145, 62]},
+    {"code": "B-041", "center": [3277, 1464], "half_size": [145, 62]},
+    {"code": "B-042", "center": [3306, 1602], "half_size": [145, 62]},
+    {"code": "B-043", "center": [3321, 1749], "half_size": [145, 62]},
+    {"code": "B-044", "center": [3360, 1891], "half_size": [145, 62]},
+    {"code": "B-045", "center": [3384, 2047], "half_size": [145, 62]},
+    {"code": "B-046", "center": [3433, 2194], "half_size": [145, 62]},
+    {"code": "B-047", "center": [3446, 2351], "half_size": [145, 62]},
+    {"code": "B-069", "center": [1802, 764], "half_size": [64, 150]},
+    {"code": "B-070", "center": [1954, 735], "half_size": [64, 150]},
+    {"code": "B-071", "center": [2096, 700], "half_size": [64, 150]},
+    {"code": "B-072", "center": [2380, 632], "half_size": [64, 150]},
+    {"code": "B-073", "center": [2527, 617], "half_size": [64, 150]}
+  ]
+}

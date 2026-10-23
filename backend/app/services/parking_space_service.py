@@ -10,6 +10,7 @@ from app.services.parking_map_service import get_parking_map_path
 from app.services.image_zone_service import get_image_zone
 from app.services.parking_zone_config import get_zone_capacity
 from app.services.analysis_service import serialize_analysis
+from app.services.zone_b_pair_service import is_pair_member
 
 
 def _configured_space_count(db: Session, analysis: AnalisisImagen) -> int:
@@ -52,13 +53,14 @@ def _build_zone_spaces(zone_code: str, total_spaces: int, occupied_spaces: int) 
 
 
 def get_latest_parking_spaces(db: Session) -> dict:
-    latest_analysis = (
+    analyses = (
         db.query(AnalisisImagen)
         .join(ImagenCapturada)
         .filter(AnalisisImagen.estado == "completado_yolo")
         .order_by(ImagenCapturada.id_imagen.desc())
-        .first()
+        .all()
     )
+    latest_analysis = next((item for item in analyses if not is_pair_member(db, item.id_imagen)), None)
 
     if not latest_analysis:
         raise HTTPException(status_code=404, detail="No hay análisis registrados.")

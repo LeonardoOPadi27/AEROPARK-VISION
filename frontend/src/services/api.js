@@ -70,6 +70,16 @@ export const uploadImage = async (file, zoneCode) => {
   return data;
 };
 
+export const uploadZoneBPair = async (lowerFile, upperFile) => {
+  const formData = new FormData();
+  formData.append("lower_file", lowerFile);
+  formData.append("upper_file", upperFile);
+  const { data } = await api.post("/images/upload-zone-b-pair", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+};
+
 export const getImages = async () => {
   const { data } = await api.get("/images");
   return data;

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import PageScaffold from "../components/PageScaffold";
 import DottedSurface from "../components/ui/DottedSurface";
-import { API_BASE_URL, getLatestImage, uploadImage } from "../services/api";
+import { API_BASE_URL, getLatestImage, uploadImage, uploadZoneBPair } from "../services/api";
 
 const parkingZones = [
   { code: "A", label: "Zona A" },
@@ -39,7 +39,9 @@ const getStoredImageUrl = (url) => {
 
 export default function UploadImagesPage({ onLogout }) {
   const inputRef = useRef(null);
+  const upperInputRef = useRef(null);
   const [imageFile, setImageFile] = useState(null);
+  const [upperImageFile, setUpperImageFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [status, setStatus] = useState("Esperando imagen");
@@ -51,6 +53,10 @@ export default function UploadImagesPage({ onLogout }) {
     if (!imageFile) return "";
     return URL.createObjectURL(imageFile);
   }, [imageFile]);
+  const upperPreviewUrl = useMemo(() => {
+    if (!upperImageFile) return "";
+    return URL.createObjectURL(upperImageFile);
+  }, [upperImageFile]);
 
   const activeImage = uploadResult ?? latestImage;
   const storedImageUrl = getStoredImageUrl(activeImage?.url);
@@ -60,6 +66,9 @@ export default function UploadImagesPage({ onLogout }) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+  useEffect(() => () => {
+    if (upperPreviewUrl) URL.revokeObjectURL(upperPreviewUrl);
+  }, [upperPreviewUrl]);
 
   useEffect(() => {
     let isMounted = true;
@@ -100,6 +109,18 @@ export default function UploadImagesPage({ onLogout }) {
     handleFile(event.target.files?.[0]);
   };
 
+  const handleUpperInputChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setStatus("Selecciona un archivo de imagen válido");
+      return;
+    }
+    setUpperImageFile(file);
+    setUploadResult(null);
+    setStatus("Dos tomas listas para subir");
+  };
+
   const handleDrop = (event) => {
     event.preventDefault();
     setIsDragging(false);
@@ -107,21 +128,23 @@ export default function UploadImagesPage({ onLogout }) {
   };
 
   const handleUpload = async () => {
-    if (!imageFile) {
-      setStatus("Selecciona una imagen antes de subir");
+    if (!imageFile || (selectedZoneCode === "B" && !upperImageFile)) {
+      setStatus(selectedZoneCode === "B" ? "Selecciona ambas tomas de Zona B" : "Selecciona una imagen antes de subir");
       return;
     }
 
     if (uploadResult) return;
 
     setIsUploading(true);
-    setStatus("Subiendo imagen...");
+    setStatus(selectedZoneCode === "B" ? "Subiendo las dos tomas..." : "Subiendo imagen...");
 
     try {
-      const result = await uploadImage(imageFile, selectedZoneCode);
+      const result = selectedZoneCode === "B"
+        ? await uploadZoneBPair(imageFile, upperImageFile)
+        : await uploadImage(imageFile, selectedZoneCode);
       setUploadResult(result);
       setLatestImage(result);
-      setStatus("Última imagen cargada disponible");
+      setStatus(selectedZoneCode === "B" ? "Dos tomas cargadas; análisis en proceso" : "Última imagen cargada disponible");
       notifyAnalysisReady();
     } catch {
       setStatus("No se pudo subir la imagen");
@@ -132,16 +155,18 @@ export default function UploadImagesPage({ onLogout }) {
 
   const clearImage = () => {
     setImageFile(null);
+    setUpperImageFile(null);
     setUploadResult(null);
     setLatestImage(null);
     setStatus("Esperando imagen");
     if (inputRef.current) inputRef.current.value = "";
+    if (upperInputRef.current) upperInputRef.current.value = "";
   };
 
   return (
     <PageScaffold
       title="Carga de imágenes"
-      description="Carga una imagen aérea capturada por dron para actualizar el análisis de ocupación del estacionamiento."
+      description="Carga imágenes aéreas para actualizar la ocupación del estacionamiento."
       module="upload"
       onLogout={onLogout}
     >
@@ -173,18 +198,22 @@ export default function UploadImagesPage({ onLogout }) {
               <UploadCloud className="h-7 w-7" />
             </div>
             <h2 className="text-2xl font-semibold tracking-[-.02em]">
-              Arrastra una imagen aérea
+              {selectedZoneCode === "B" ? "Carga las dos tomas de Zona B" : "Arrastra una imagen aérea"}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-white/55">
-              Usa imágenes JPG, PNG o WEBP del estacionamiento. La imagen se
-              previsualiza localmente antes de enviarse al backend.
+              {selectedZoneCode === "B"
+                ? "Selecciona la foto inferior y la superior del mismo recorrido."
+                : "Usa imágenes JPG, PNG o WEBP del estacionamiento. La imagen se previsualiza localmente antes de enviarse al backend."}
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               {parkingZones.map((zone) => (
                 <button
                   key={zone.code}
                   type="button"
-                  onClick={() => setSelectedZoneCode(zone.code)}
+                  onClick={() => {
+                    setSelectedZoneCode(zone.code);
+                    setUploadResult(null);
+                  }}
                   className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
                     selectedZoneCode === zone.code
                       ? "border-white bg-white text-black"
@@ -201,9 +230,34 @@ export default function UploadImagesPage({ onLogout }) {
               className="upload-select-button liquid-action-button liquid-action-button-light mt-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold"
             >
               <ImagePlus className="h-5 w-5" />
-              Seleccionar imagen
+              {selectedZoneCode === "B" ? "Foto inferior" : "Seleccionar imagen"}
             </button>
+            {selectedZoneCode === "B" && (
+              <>
+                <input
+                  ref={upperInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleUpperInputChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => upperInputRef.current?.click()}
+                  className="upload-select-button liquid-action-button liquid-action-button-light ml-2 mt-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                  Foto superior
+                </button>
+              </>
+            )}
           </div>
+          {selectedZoneCode === "B" && upperImageFile && (
+            <div className="mt-3 flex items-center gap-3 text-sm text-white/70">
+              <img src={upperPreviewUrl} alt="Vista previa de la toma superior" className="h-14 w-20 rounded-md object-cover" />
+              <span className="min-w-0 truncate">Superior: {upperImageFile.name}</span>
+            </div>
+          )}
         </section>
 
         <aside className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5">
@@ -292,15 +346,15 @@ export default function UploadImagesPage({ onLogout }) {
             <button
               type="button"
               onClick={handleUpload}
-              disabled={!imageFile || isUploading || Boolean(uploadResult)}
+              disabled={!imageFile || (selectedZoneCode === "B" && !upperImageFile) || isUploading || Boolean(uploadResult)}
               className="liquid-action-button liquid-action-button-light inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
             >
               <UploadCloud className="h-4 w-4" />
               {isUploading
                 ? "Subiendo..."
                 : uploadResult
-                  ? "Imagen subida"
-                  : "Subir imagen"}
+                  ? "Carga completada"
+                  : selectedZoneCode === "B" ? "Subir dos tomas" : "Subir imagen"}
             </button>
             <button
               type="button"
@@ -315,7 +369,7 @@ export default function UploadImagesPage({ onLogout }) {
           <button
             type="button"
             onClick={clearImage}
-            disabled={!imageFile && !activeImage}
+            disabled={!imageFile && !upperImageFile && !activeImage}
             className="upload-select-button liquid-action-button liquid-action-button-light mt-3 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
           >
             <Trash2 className="h-4 w-4" />

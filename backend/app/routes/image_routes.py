@@ -8,7 +8,9 @@ from app.services.image_service import (
     get_latest_uploaded_image,
     get_uploaded_images,
     process_uploaded_image,
+    process_zone_b_pair,
     save_uploaded_image,
+    save_zone_b_pair,
 )
 
 router = APIRouter(prefix="/images", tags=["Images"])
@@ -33,6 +35,19 @@ def upload_image(
         str(source_path),
         remove_source_after_processing,
     )
+    return payload
+
+
+@router.post("/upload-zone-b-pair")
+def upload_zone_b_pair(
+    background_tasks: BackgroundTasks,
+    lower_file: UploadFile = File(...),
+    upper_file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
+    payload, jobs = save_zone_b_pair(db, lower_file, upper_file)
+    background_tasks.add_task(process_zone_b_pair, jobs)
     return payload
 
 

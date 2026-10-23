@@ -97,6 +97,35 @@ def _default_zone_b_spaces() -> list[dict]:
     return spaces
 
 
+def get_zone_b_upper_calibration(image_width: int, image_height: int) -> dict:
+    """Reviewed upper-camera slots; the remaining B slots use the lower photo."""
+    source = json.loads(
+        (PROJECT_ROOT / "ai-model" / "config" / "zone_b_upper_spaces.json").read_text()
+    )
+    spaces = []
+    for item in source["spaces"]:
+        x, y = item["center"]
+        half_width, half_height = item["half_size"]
+        polygon = [
+            [x - half_width, y - half_height],
+            [x + half_width, y - half_height],
+            [x + half_width, y + half_height],
+            [x - half_width, y + half_height],
+        ]
+        spaces.append({
+            "code": item["code"],
+            "polygon": [[px / source["image_width"], py / source["image_height"]]
+                        for px, py in polygon],
+        })
+    return {
+        "zone_code": "B",
+        "image_width": image_width,
+        "image_height": image_height,
+        "spaces": spaces,
+        "source": "zone_b_upper_template",
+    }
+
+
 def get_default_calibration(
     zone_code: str | None,
     image_width: int,

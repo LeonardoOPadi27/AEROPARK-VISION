@@ -13,6 +13,7 @@ from app.models.imagen import ImagenCapturada
 from app.services.analysis_service import ensure_analysis_for_image, serialize_analysis
 from app.services.image_zone_service import get_image_zone, save_image_zone
 from app.services.storage_service import delete_file, object_storage_enabled, upload_file
+from app.services.zone_b_pair_service import save_pair
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 UPLOAD_DIR = BACKEND_ROOT / "uploads"
@@ -160,6 +161,42 @@ def process_uploaded_image(
                 path.unlink()
             except OSError:
                 pass
+
+
+def save_zone_b_pair(db: Session, lower_file: UploadFile, upper_file: UploadFile) -> tuple[dict, list[tuple[int, str, bool]]]:
+    lower, lower_path, lower_remove = save_uploaded_image(db, lower_file, zone_code="B")
+    try:
+        upper, upper_path, upper_remove = save_uploaded_image(db, upper_file, zone_code="B")
+        save_pair(db, lower["id_imagen"], upper["id_imagen"])
+    except Exception:
+        first = db.get(AnalisisImagen, lower["analysis"]["id_analisis"])
+        if first:
+            first.estado = "fallido"
+            db.commit()
+        raise
+    return upper, [
+        (lower["id_imagen"], str(lower_path), lower_remove),
+        (upper["id_imagen"], str(upper_path), upper_remove),
+    ]
+
+
+def process_zone_b_pair(jobs: list[tuple[int, str, bool]]) -> None:
+    for image_id, path, remove_after in jobs:
+        process_uploaded_image(image_id, path, remove_after)
+        db = SessionLocal()
+        try:
+            analysis = db.query(AnalisisImagen).filter_by(id_imagen=image_id).first()
+            if not analysis or analysis.estado != "completado_yolo":
+                for pending_id, _, _ in jobs:
+                    if pending_id == image_id:
+                        continue
+                    pending = db.query(AnalisisImagen).filter_by(id_imagen=pending_id).first()
+                    if pending and pending.estado == "pendiente":
+                        pending.estado = "fallido"
+                db.commit()
+                return
+        finally:
+            db.close()
 
 
 def get_uploaded_images(db: Session) -> list[dict]:
