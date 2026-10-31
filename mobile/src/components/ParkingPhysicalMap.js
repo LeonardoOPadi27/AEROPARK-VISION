@@ -197,12 +197,17 @@ const getPhysicalSpaces = (zone) => {
 
   if (!slots.length) return zone.spaces ?? [];
 
+  const usedCodes = new Set();
   return slots.map((slot, index) => {
     const displayCode = `${zone.id}-${String(slot.slotNumber ?? index + 1).padStart(3, "0")}`;
-    const existingSpace =
+    const matchedSpace =
       zone.spaces?.find((space) => space.display_code === displayCode) ??
-      zone.spaces?.find((space) => space.code === displayCode) ??
-      zone.spaces?.[index];
+      zone.spaces?.find((space) => space.code === displayCode);
+    const existingSpace =
+      (matchedSpace && !usedCodes.has(matchedSpace.code) ? matchedSpace : null) ??
+      zone.spaces?.find((space) => !usedCodes.has(space.code));
+
+    if (existingSpace) usedCodes.add(existingSpace.code);
 
     return (
       existingSpace ?? {
@@ -224,10 +229,18 @@ export default function ParkingPhysicalMap({ zone, onSelectSpace }) {
   return (
     <View style={styles.wrapper}>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Plano fisico</Text>
+        <Text style={styles.headerTitle}>Plano físico</Text>
         <Text style={styles.headerHint}>
           {isZoneB ? "Desliza para ver todos los espacios" : "Toca un espacio para gestionar"}
         </Text>
+      </View>
+
+      <View style={styles.legend}>
+        <LegendDot color={statusStyles.free.backgroundColor} label="Libre" />
+        <LegendDot color={statusStyles.occupied.backgroundColor} label="Ocupado" />
+        <LegendDot color={statusStyles.unknown.backgroundColor} label="Sin confirmar" />
+        <LegendDot color={statusStyles.user_occupied.backgroundColor} label="Marcado en app" />
+        <LegendDot color={statusStyles.pending.backgroundColor} label="Confirmación pendiente" />
       </View>
 
       <ScrollView
@@ -284,13 +297,6 @@ export default function ParkingPhysicalMap({ zone, onSelectSpace }) {
         </View>
       </ScrollView>
 
-      <View style={styles.legend}>
-        <LegendDot color={statusStyles.free.backgroundColor} label="Libre" />
-        <LegendDot color={statusStyles.occupied.backgroundColor} label="Ocupado" />
-        <LegendDot color={statusStyles.unknown.backgroundColor} label="Sin ubicar" />
-        <LegendDot color={statusStyles.user_occupied.backgroundColor} label="App" />
-        <LegendDot color={statusStyles.pending.backgroundColor} label="Pendiente" />
-      </View>
     </View>
   );
 }

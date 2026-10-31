@@ -40,7 +40,7 @@ def _build_row(
         ]
 
     for index in range(count):
-        start_ratio, end_ratio = (index + 0.025) / count, (index + 0.975) / count
+        start_ratio, end_ratio = (index + 0.01) / count, (index + 0.99) / count
         polygon = [
             point(side1_start, side1_end, start_ratio),
             point(side2_start, side2_end, start_ratio),
@@ -61,13 +61,13 @@ def _build_row(
 def _default_zone_a_spaces() -> list[dict]:
     """Reviewed A template, shared automatically by drone images of zone A."""
     spaces: list[dict] = []
-    width, height = 1303, 1207
-    _build_row(spaces, "A", 1, 9, (112, 735), (175, 481), (174, 752), (235, 498), width, height)
-    _build_row(spaces, "A", 10, 5, (180, 430), (215, 285), (250, 450), (285, 305), width, height)
-    _build_row(spaces, "A", 15, 9, (324, 757), (386, 510), (388, 775), (450, 528), width, height)
-    _build_row(spaces, "A", 24, 6, (337, 477), (377, 309), (402, 495), (441, 327), width, height)
-    _build_row(spaces, "A", 30, 9, (468, 193), (1089, 350), (436, 315), (1057, 473), width, height)
-    _build_row(spaces, "A", 39, 8, (310, 963), (1135, 772), (397, 1077), (1177, 889), width, height)
+    width, height = 5280, 3956
+    _build_row(spaces, "A", 1, 9, (1750, 2710), (1935, 2150), (1940, 2710), (2135, 2150), width, height)
+    _build_row(spaces, "A", 10, 5, (1980, 2080), (1995, 1738), (2160, 2080), (2185, 1738), width, height)
+    _build_row(spaces, "A", 15, 9, (2180, 2750), (2350, 2110), (2470, 2750), (2610, 2110), width, height)
+    _build_row(spaces, "A", 24, 6, (2180, 2070), (2240, 1690), (2480, 2070), (2540, 1690), width, height)
+    _build_row(spaces, "A", 30, 9, (2580, 1490), (3900, 1770), (2580, 1870), (3900, 2150), width, height)
+    _build_row(spaces, "A", 39, 8, (2260, 3267), (3970, 2891), (2300, 3527), (4010, 3151), width, height)
     return spaces
 
 
@@ -95,6 +95,25 @@ def _default_zone_b_spaces() -> list[dict]:
             }
         )
     return spaces
+
+
+def _stitched_zone_b_spaces(image_width: int, image_height: int) -> list[dict] | None:
+    source = json.loads(
+        (PROJECT_ROOT / "ai-model/config/zone_b_stitched_spaces.json").read_text()
+    )
+    reference_ratio = source["image_width"] / source["image_height"]
+    if abs(image_width / image_height - reference_ratio) > 0.005:
+        return None
+    return [
+        {
+            "code": item["code"],
+            "polygon": [
+                [x / source["image_width"], y / source["image_height"]]
+                for x, y in item["polygon"]
+            ],
+        }
+        for item in source["spaces"]
+    ]
 
 
 def get_zone_b_upper_calibration(image_width: int, image_height: int) -> dict:
@@ -140,7 +159,8 @@ def get_default_calibration(
     if normalized_zone == "A":
         spaces = _default_zone_a_spaces()
     elif normalized_zone == "B":
-        spaces = _default_zone_b_spaces()
+        stitched = _stitched_zone_b_spaces(image_width, image_height)
+        spaces = stitched if stitched is not None else _default_zone_b_spaces()
     else:
         return None
 
@@ -149,7 +169,7 @@ def get_default_calibration(
         "image_width": image_width,
         "image_height": image_height,
         "spaces": spaces,
-        "source": "zone_template",
+        "source": "zone_b_stitched_template" if normalized_zone == "B" and stitched is not None else "zone_template",
     }
 
 
@@ -200,6 +220,33 @@ def get_calibration_editor(db: Session, image_id: int) -> dict:
             width, height = source.size
     except (OSError, ValueError) as exc:
         raise HTTPException(422, "No se puede leer la imagen de referencia.") from exc
+    detections = [
+        {"bbox": [v.x1, v.y1, v.x2, v.y2], "label": v.clase,
+         "confidence": v.confianza or 0}
+        for v in image.analisis.vehiculos
+    ] if image.analisis else []
+    default = get_default_calibration(image.codigo_zona, width, height)
+    if default and default["source"] == "zone_b_stitched_template":
+        saved = load_calibration(db, image_id)
+        calibration = merge_calibrations(default, saved) if saved else default
+        contours = {
+            item["code"]: np.asarray(item["polygon"], dtype=np.float32)
+            for item in calibration["spaces"]
+        }
+        by_space = {}
+        for detection in detections:
+            if detection["label"] != "car":
+                continue
+            x1, y1, x2, y2 = detection["bbox"]
+            center = ((x1 + x2) / (2 * width), (y1 + y2) / (2 * height))
+            matches = [code for code, contour in contours.items()
+                       if cv2.pointPolygonTest(contour, center, False) > 0]
+            if len(matches) == 1 and (
+                matches[0] not in by_space
+                or detection["confidence"] > by_space[matches[0]]["confidence"]
+            ):
+                by_space[matches[0]] = detection
+        detections = list(by_space.values())
     return {
         "image_id": image_id,
         "image_url": image.ruta_archivo,
@@ -209,9 +256,9 @@ def get_calibration_editor(db: Session, image_id: int) -> dict:
         "image_height": height,
         "calibration": load_calibration(db, image_id),
         "detections": [
-            {"bbox": [v.x1, v.y1, v.x2, v.y2], "label": v.clase}
-            for v in image.analisis.vehiculos
-        ] if image.analisis else [],
+            {"bbox": item["bbox"], "label": item["label"]}
+            for item in detections
+        ],
     }
 
 

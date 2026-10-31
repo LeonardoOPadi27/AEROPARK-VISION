@@ -88,7 +88,7 @@ export default function AnalysisPage({ onLogout }) {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
-                Runtime IA
+                Procesamiento
               </p>
               <h2 className="mt-1 text-xl font-black">Estado de YOLO</h2>
             </div>
@@ -103,25 +103,13 @@ export default function AnalysisPage({ onLogout }) {
               {yoloStatus?.ready ? "YOLO activo" : "YOLO no disponible"}
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl bg-white/[.03] p-4">
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-white/45">
-                Modo actual
-              </p>
-              <p className="mt-2 text-base font-black">{yoloStatus?.mode ?? "--"}</p>
-            </div>
-            <div className="rounded-2xl bg-white/[.03] p-4 md:col-span-2">
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-white/45">
-                Estado
-              </p>
-              <p className="mt-2 text-sm font-semibold text-white/75">
-                {yoloStatus?.reason ?? "Cargando estado del modelo..."}
-              </p>
-              <p className="mt-2 truncate text-xs text-white/40">
-                {yoloStatus?.weights_path ?? ""}
-              </p>
-            </div>
-          </div>
+          <p className="mt-4 text-sm font-semibold text-white/75">
+            {!yoloStatus
+              ? "Consultando estado del modelo..."
+              : yoloStatus.ready
+                ? "Listo para analizar imágenes."
+                : "El análisis de imágenes no está disponible en este momento."}
+          </p>
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5">
@@ -203,7 +191,7 @@ export default function AnalysisPage({ onLogout }) {
                           <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                           Procesando
                         </span>
-                      ) : row.analysis_mode}
+                      ) : row.analysis_mode === "yolo" ? "YOLO" : row.analysis_mode === "mock" ? "Simulado" : "No disponible"}
                     </span>
                     {processing ? (
                       <div className="analysis-processing-indicator" aria-label="Procesando imagen">

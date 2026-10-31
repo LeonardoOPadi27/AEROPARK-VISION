@@ -164,9 +164,4 @@ export const runAnalysis = async (imageId) => {
   return data;
 };
 
-export const runMockAnalysis = async (imageId) => {
-  const { data } = await api.post(`/analysis/images/${imageId}/run-mock`);
-  return data;
-};
-
 export default api;

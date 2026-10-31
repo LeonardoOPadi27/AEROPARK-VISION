@@ -1,510 +1,239 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  Bike,
-  Car,
-  CheckCircle2,
-  ParkingSquare,
-  TrendingUp,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, Bike, Car, ImageUp, RefreshCw } from "lucide-react";
+import { Link } from "react-router-dom";
 import PageScaffold from "../components/PageScaffold";
-import CountUp from "../components/CountUp";
-import {
-  API_BASE_URL,
-  getAnalyses,
-  getLatestAnalysis,
-  getMobileParkingOverview,
-} from "../services/api";
+import { API_BASE_URL, getLatestAnalysis, getMobileParkingOverview } from "../services/api";
 
-const colorPalette = {
-  Negro: "#111827",
-  Gris: "#9ca3af",
-  Plateado: "#cbd5e1",
-  Blanco: "#f8fafc",
-  Rojo: "#ef4444",
-  Naranja: "#f97316",
-  Amarillo: "#eab308",
-  Azul: "#2563eb",
-  Verde: "#22c55e",
-  Otro: "#64748b",
+const formatDateTime = (value) => {
+  if (!value) return "Sin revisión";
+  const normalized = typeof value === "string" && !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)
+    ? `${value}Z`
+    : value;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return "Sin revisión";
+  return new Intl.DateTimeFormat("es-PE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 };
 
 const getStoredImageUrl = (url) => {
   if (!url) return "";
-  if (url.startsWith("http")) return url;
-  return `${API_BASE_URL}${url}`;
+  return url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
 };
 
-const formatDateTime = (value) => {
-  if (!value) return "Pendiente";
+const fetchDashboardData = () => Promise.allSettled([
+  getMobileParkingOverview(),
+  getLatestAnalysis(),
+]);
 
-  try {
-    return new Intl.DateTimeFormat("es-PE", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-};
-
-function MetricCard({ label, value, icon: Icon, suffix = "" }) {
-  const isNumeric = typeof value === "number" && Number.isFinite(value);
-
+function SummaryValue({ label, value, color, primary = false }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-xs font-medium text-white/45">{label}</p>
-        <Icon className="h-4 w-4 text-white/40" />
-      </div>
-      <p className="text-2xl font-semibold tabular-nums tracking-[-.02em]">
-        {isNumeric ? (
-          <CountUp from={0} to={value} separator="," duration={2.4} />
-        ) : (
-          value
-        )}
-        {isNumeric ? suffix : ""}
+    <div className="min-w-0 rounded-3xl border border-white/10 bg-[#0a0a0a] p-5 sm:p-6">
+      <p className="flex items-center gap-2 text-xs font-semibold text-white/55">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${color}`} aria-hidden="true" />
+        {label}
+      </p>
+      <p className={`mt-2 font-bold leading-none tabular-nums ${primary ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl"}`}>
+        {value}
       </p>
     </div>
   );
 }
 
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
+function ZoneRow({ zone }) {
+  const available = zone.analysis_available;
+  const located = available && zone.location_assignment_available;
+  const total = zone.total_spaces || 1;
+  const segments = [
+    { label: "libres", count: zone.free_spaces ?? 0, color: "bg-emerald-500" },
+    { label: "ocupados", count: zone.occupied_spaces ?? 0, color: "bg-rose-500" },
+    { label: "sin confirmar", count: located ? zone.unknown_spaces ?? 0 : 0, color: "bg-amber-400" },
+  ];
 
   return (
-    <div className="chart-floating-tooltip rounded-2xl px-3 py-2 text-sm shadow-2xl">
-      <p className="text-white/45">{label}</p>
-      <p className="font-medium text-white">{payload[0].value} vehículos</p>
-    </div>
-  );
-}
-
-function OccupancyTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-
-  const item = payload[0];
-
-  return (
-    <div className="occupancy-floating-tooltip">
-      <span
-        className="h-2.5 w-2.5 rounded-full"
-        style={{ backgroundColor: item.payload.color }}
-      />
-      <div>
-        <p className="text-xs text-white/48">{item.name}</p>
-        <p className="text-sm font-semibold tabular-nums text-white">
-          {item.value}%
-        </p>
+    <div className="flex h-full flex-col rounded-3xl border border-white/10 bg-[#0a0a0a] p-5 sm:p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-base font-bold">Zona {zone.id}</h3>
+        <span className="text-xs text-white/55">{zone.total_spaces} espacios</span>
       </div>
+      <p className="mt-1 text-xs text-white/55">{zone.title}</p>
+      {available ? (
+        <div className="mt-5">
+          <div
+            className="flex h-2.5 overflow-hidden rounded-full bg-white/10"
+            role="img"
+            aria-label={`Zona ${zone.id}: ${located ? "" : "estimación de "}${segments.map((item) => `${item.count} ${item.label}`).join(", ")}`}
+          >
+            {segments.map((item) => (
+              <span key={item.label} className={item.color} style={{ width: `${item.count / total * 100}%` }} />
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-white/60">
+            {located
+              ? `${zone.free_spaces} libres · ${zone.occupied_spaces} ocupados${zone.unknown_spaces ? ` · ${zone.unknown_spaces} sin confirmar` : ""}`
+              : `${zone.free_spaces} libres · ${zone.occupied_spaces} ocupados (estimación, sin plano vinculado)`}
+          </p>
+        </div>
+      ) : (
+        <p className="mt-5 text-sm text-white/55">Aún no hay análisis operativo de esta zona.</p>
+      )}
+      <p className="mt-auto pt-5 text-xs text-white/55">
+        {available ? `Revisada ${formatDateTime(zone.updated_at)}` : "Pendiente de revisión"}
+      </p>
     </div>
   );
 }
 
 export default function DashboardPage({ onLogout }) {
-  const [timeMode, setTimeMode] = useState("analysis");
   const [latestAnalysis, setLatestAnalysis] = useState(null);
   const [parkingSummary, setParkingSummary] = useState(null);
-  const [analysisRows, setAnalysisRows] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const applyData = ([parkingResult, analysisResult]) => {
+    setParkingSummary(parkingResult.status === "fulfilled" ? parkingResult.value : null);
+    setLatestAnalysis(analysisResult.status === "fulfilled" ? analysisResult.value : null);
+    setLoadError(parkingResult.status === "rejected" || analysisResult.status === "rejected");
+  };
+
+  const refreshData = async () => {
+    setIsRefreshing(true);
+    applyData(await fetchDashboardData());
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadData = async () => {
-      try {
-        const [latestData, parkingData, rowsData] = await Promise.all([
-          getLatestAnalysis(),
-          getMobileParkingOverview(),
-          getAnalyses(),
-        ]);
-        if (!isMounted) return;
-        setLatestAnalysis(latestData);
-        setParkingSummary(parkingData);
-        setAnalysisRows(rowsData);
-      } catch {
-        if (!isMounted) return;
-        setLatestAnalysis(null);
-        setParkingSummary(null);
-        setAnalysisRows([]);
-      }
-    };
-
-    loadData();
-
-    return () => {
-      isMounted = false;
-    };
+    let active = true;
+    fetchDashboardData().then((results) => {
+      if (!active) return;
+      const [parkingResult, analysisResult] = results;
+      setParkingSummary(parkingResult.status === "fulfilled" ? parkingResult.value : null);
+      setLatestAnalysis(analysisResult.status === "fulfilled" ? analysisResult.value : null);
+      setLoadError(parkingResult.status === "rejected" || analysisResult.status === "rejected");
+      setIsLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
-  const vehicleTrend = useMemo(() => {
-    if (!analysisRows.length) return [];
-
-    if (timeMode === "day") {
-      const grouped = analysisRows.reduce((acc, row) => {
-        const label = row.fecha_analisis
-          ? new Intl.DateTimeFormat("es-PE", {
-              day: "2-digit",
-              month: "2-digit",
-            }).format(new Date(row.fecha_analisis))
-          : "Sin fecha";
-        acc[label] =
-          (acc[label] ?? 0) +
-          (row.total_vehiculos ?? row.vehiculos_detectados ?? 0);
-        return acc;
-      }, {});
-
-      return Object.entries(grouped)
-        .map(([hora, autos]) => ({ hora, autos }))
-        .slice(-8);
-    }
-
-    return [...analysisRows]
-      .reverse()
-      .slice(-10)
-      .map((row) => ({
-        hora: row.fecha_analisis
-          ? new Intl.DateTimeFormat("es-PE", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }).format(new Date(row.fecha_analisis))
-          : `AN-${row.id_analisis}`,
-        autos: row.total_vehiculos ?? row.vehiculos_detectados ?? 0,
-      }));
-  }, [analysisRows, timeMode]);
-
+  const zones = parkingSummary?.zones ?? [];
+  const locatedZones = zones.filter((zone) => zone.analysis_available && zone.location_assignment_available);
+  const totals = locatedZones.reduce((sum, zone) => ({
+    free: sum.free + (zone.free_spaces ?? 0),
+    occupied: sum.occupied + (zone.occupied_spaces ?? 0),
+    unknown: sum.unknown + (zone.unknown_spaces ?? 0),
+  }), { free: 0, occupied: 0, unknown: 0 });
+  const mostRecentReview = locatedZones.reduce((latest, zone) => {
+    const timestamp = Date.parse(zone.updated_at ?? "") || 0;
+    return timestamp > latest ? timestamp : latest;
+  }, 0);
   const latestImageUrl = getStoredImageUrl(latestAnalysis?.image_url);
-  const autosCount =
-    latestAnalysis?.autos_detectados ?? latestAnalysis?.vehiculos_detectados ?? 0;
-  const motorcyclesCount = latestAnalysis?.motocicletas_detectadas ?? 0;
-  const totalVehicles =
-    latestAnalysis?.total_vehiculos ??
-    latestAnalysis?.vehiculos_detectados ??
-    autosCount + motorcyclesCount;
-  const hasCompleteParkingCoverage = parkingSummary?.coverage_complete === true;
-  const hasLocatedSpaces = parkingSummary?.zones?.some((zone) => zone.location_assignment_available) === true;
-  const hasParkingCounts = hasCompleteParkingCoverage || hasLocatedSpaces;
-  const occupied = hasLocatedSpaces ? parkingSummary.located_occupied_spaces : hasCompleteParkingCoverage
-    ? parkingSummary.occupied_spaces
-    : 0;
-  const free = hasLocatedSpaces ? parkingSummary.located_free_spaces : hasCompleteParkingCoverage ? parkingSummary.free_spaces : 0;
-  const totalSpaces = parkingSummary?.total_spaces ?? occupied + free;
-  const occupancyPercent = hasParkingCounts
-    ? totalSpaces
-      ? Number(((occupied / totalSpaces) * 100).toFixed(1))
-      : 0
-    : 0;
-  const manualMarkedCount =
-    parkingSummary?.zones?.reduce(
-      (total, zone) =>
-        total +
-        zone.spaces.filter((space) => space.status === "user_occupied").length,
-      0,
-    ) ?? 0;
-  const occupancySourceLabel = hasLocatedSpaces ? `Ultimas fotos · ${parkingSummary.unknown_spaces} espacios sin confirmar` : !hasCompleteParkingCoverage
-    ? "Cobertura incompleta de las zonas"
-    : parkingSummary?.source === "polygon_map"
-      ? manualMarkedCount
-        ? "Mapa por polígonos + app mobile"
-        : "Mapa por polígonos"
-      : manualMarkedCount
-        ? "Estimación YOLO + app mobile"
-        : "Estimación YOLO";
-  const occupancyData = !hasParkingCounts ? [
-    { name: "Sin confirmar", value: 100, color: "#71717a" },
-  ] : [
-    { name: "Ocupados", value: occupancyPercent, color: "var(--occupancy-occupied-dot)" },
-    {
-      name: "Libres",
-      value: totalSpaces ? Number((free / totalSpaces * 100).toFixed(1)) : 0,
-      color: "var(--occupancy-free-dot)",
-    },
-    ...(hasLocatedSpaces && parkingSummary.unknown_spaces > 0 ? [{
-      name: "Sin confirmar", value: Number((parkingSummary.unknown_spaces / totalSpaces * 100).toFixed(1)), color: "#71717a",
-    }] : []),
-  ];
-  const colorRows = latestAnalysis?.color_distribution ?? [];
-  const maxColor = Math.max(...colorRows.map((item) => item.cantidad), 1);
+  const latestIsOperational = latestAnalysis?.analysis_mode === "yolo";
 
   return (
     <PageScaffold
       title="Dashboard"
-      description="Visión general de la ocupación, la disponibilidad y la actividad reciente del estacionamiento."
+      description="Estado del estacionamiento y última revisión de cada zona."
       module="dashboard"
       onLogout={onLogout}
     >
-      <div className="space-y-5">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <MetricCard label="Autos detectados" value={autosCount} icon={Car} />
-          <MetricCard label="Motocicletas" value={motorcyclesCount} icon={Bike} />
-          <MetricCard label="Total vehículos" value={totalVehicles} icon={TrendingUp} />
-          <MetricCard label={hasLocatedSpaces ? "Libres ubicados" : "Espacios libres estimados"} value={hasParkingCounts ? free : "--"} icon={ParkingSquare} />
-          <MetricCard label={hasLocatedSpaces ? "Ocupados ubicados" : "Espacios ocupados estimados"} value={hasParkingCounts ? occupied : "--"} icon={CheckCircle2} />
-          <MetricCard
-            label="Confianza media"
-            value={latestAnalysis?.confidence_mean ?? latestAnalysis?.precision_modelo ?? 0}
-            suffix="%"
-            icon={TrendingUp}
-          />
-        </div>
-
-        <div className="grid gap-5 xl:grid-cols-12 xl:items-start">
-          <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5 xl:col-span-8 xl:row-start-1">
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold tracking-[-.02em]">
-                  Vehículos detectados
-                </h2>
-                <p className="mt-1 text-sm text-white/45">
-                  Historial real de análisis procesados.
-                </p>
-              </div>
-              <div className="liquid-segmented-control relative inline-grid w-[150px] grid-cols-2 rounded-full p-1 text-xs font-medium">
-                <span
-                  aria-hidden="true"
-                  className={`liquid-segmented-thumb absolute bottom-1 top-1 w-[calc(50%-4px)] rounded-full ${
-                    timeMode === "day"
-                      ? "translate-x-[calc(100%+4px)]"
-                      : "translate-x-1"
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setTimeMode("analysis")}
-                  className={`liquid-segmented-option relative z-10 rounded-full px-3 py-2 transition-colors duration-300 ${
-                    timeMode === "analysis"
-                      ? "liquid-segmented-option-active text-black"
-                      : "text-white/55 hover:text-white"
-                  }`}
-                >
-                  Análisis
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimeMode("day")}
-                  className={`liquid-segmented-option relative z-10 rounded-full px-3 py-2 transition-colors duration-300 ${
-                    timeMode === "day"
-                      ? "liquid-segmented-option-active text-black"
-                      : "text-white/55 hover:text-white"
-                  }`}
-                >
-                  Día
-                </button>
-              </div>
-            </div>
-
-            <div className="min-h-[280px] min-w-0">
-              <ResponsiveContainer width="100%" height={280} minWidth={1} minHeight={1}>
-                <AreaChart
-                  data={vehicleTrend}
-                  margin={{ top: 10, right: 12, left: -24, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="vehicleFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                        offset="0%"
-                        stopColor="var(--chart-vehicle-fill)"
-                        stopOpacity={0.22}
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor="var(--chart-vehicle-fill)"
-                        stopOpacity={0}
-                      />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="hora"
-                    tick={{ fill: "var(--chart-axis-color)", fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    domain={[0, "dataMax + 5"]}
-                    tick={{ fill: "var(--chart-muted-axis-color)", fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip content={<ChartTooltip />} cursor={false} />
-                  <Area
-                    type="monotone"
-                    dataKey="autos"
-                    stroke="var(--chart-vehicle-line)"
-                    strokeWidth={2.4}
-                    fill="url(#vehicleFill)"
-                    dot={false}
-                    activeDot={{
-                      r: 4,
-                      fill: "var(--chart-active-dot-fill)",
-                      stroke: "var(--chart-active-dot-stroke)",
-                      strokeWidth: 2,
-                    }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          <aside className="contents">
-            <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5 xl:col-span-4 xl:col-start-9 xl:row-start-1">
-              <div className="mb-3">
-                <h2 className="text-lg font-semibold tracking-[-.02em]">
-                  Ocupación
-                </h2>
-                <p className="mt-1 text-sm text-white/45">
-                  {occupancySourceLabel}
-                </p>
-              </div>
-              <div className="occupancy-donut-3d relative mx-auto min-h-[210px] min-w-[210px] max-w-[250px]">
-                <ResponsiveContainer width="100%" height={210} minWidth={1} minHeight={1}>
-                  <PieChart>
-                    <defs>
-                      <linearGradient id="occupied3d" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="var(--occupancy-occupied-start)" />
-                        <stop offset="55%" stopColor="var(--occupancy-occupied-mid)" />
-                        <stop offset="100%" stopColor="var(--occupancy-occupied-end)" />
-                      </linearGradient>
-                      <linearGradient id="free3d" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="var(--occupancy-free-start)" />
-                        <stop offset="55%" stopColor="var(--occupancy-free-mid)" />
-                        <stop offset="100%" stopColor="var(--occupancy-free-end)" />
-                      </linearGradient>
-                      <filter id="donutGlow" x="-40%" y="-40%" width="180%" height="180%">
-                        <feGaussianBlur stdDeviation="3" result="blur" />
-                        <feMerge>
-                          <feMergeNode in="blur" />
-                          <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                      </filter>
-                    </defs>
-                    <Pie
-                      data={occupancyData}
-                      dataKey="value"
-                      innerRadius="66%"
-                      outerRadius="88%"
-                      startAngle={225}
-                      endAngle={-135}
-                      paddingAngle={4}
-                      cornerRadius={7}
-                      cy="54%"
-                      isAnimationActive={false}
-                    >
-                      {occupancyData.map((entry) => (
-                        <Cell
-                          key={`base-${entry.name}`}
-                          fill={entry.name === "Ocupados" ? "transparent" : "var(--occupancy-base-free)"}
-                          stroke="none"
-                        />
-                      ))}
-                    </Pie>
-                    <Pie
-                      data={occupancyData}
-                      dataKey="value"
-                      innerRadius="66%"
-                      outerRadius="88%"
-                      startAngle={225}
-                      endAngle={-135}
-                      paddingAngle={4}
-                      cornerRadius={7}
-                      cy="50%"
-                      filter="url(#donutGlow)"
-                    >
-                      {occupancyData.map((entry, index) => (
-                        <Cell
-                          key={entry.name}
-                          fill={entry.name === "Sin confirmar" ? entry.color : index === 0 ? "url(#occupied3d)" : "url(#free3d)"}
-                          stroke="none"
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={<OccupancyTooltip />}
-                      cursor={false}
-                      wrapperStyle={{ outline: "none", zIndex: 20 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {occupancyData.map((item) => (
-                  <div key={item.name} className="rounded-2xl bg-white/[.03] p-3">
-                    <p className="text-white/45">{item.name}</p>
-                    <p className="mt-1 font-semibold">
-                      {hasParkingCounts ? `${item.value}%` : "--"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5 xl:col-span-4 xl:col-start-9 xl:row-start-2">
-              <h2 className="text-lg font-semibold tracking-[-.02em]">
-                Última imagen
-              </h2>
-              <div className="mt-4 aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black">
-                {latestImageUrl ? (
-                  <img
-                    src={latestImageUrl}
-                    alt="Última imagen analizada"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center text-sm text-white/35">
-                    Sin análisis disponible
-                  </div>
-                )}
-              </div>
-              <p className="mt-3 text-xs text-white/45">
-                {latestAnalysis
-                  ? `AN-${String(latestAnalysis.id_analisis).padStart(3, "0")} · ${formatDateTime(latestAnalysis.fecha_analisis)}`
-                  : "Pendiente"}
+      <div className="space-y-9 text-white">
+        <section aria-labelledby="dashboard-status-title">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 id="dashboard-status-title" className="text-lg font-bold">Disponibilidad actual</h2>
+              <p className="mt-1 text-xs text-white/55">
+                {locatedZones.length
+                  ? `${locatedZones.length} de ${zones.length} zonas con espacios ubicados · revisión más reciente: ${formatDateTime(mostRecentReview)}`
+                  : "Sin zonas con espacios ubicados y revisados"}
               </p>
-            </section>
-          </aside>
+            </div>
+            <button
+              type="button"
+              onClick={refreshData}
+              disabled={isLoading || isRefreshing}
+              title="Actualizar estado"
+              aria-label="Actualizar estado"
+              className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-white/[.03] transition hover:bg-white/[.08] disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+          {loadError && !isLoading ? (
+            <p role="alert" className="mt-4 text-sm text-rose-400">
+              Algunos datos no se pudieron actualizar. Vuelve a intentarlo.
+            </p>
+          ) : null}
+          <div className="mt-5 grid grid-cols-3 gap-3 sm:gap-4">
+            <SummaryValue label="Libres" value={isLoading || !locatedZones.length ? "--" : totals.free} color="bg-emerald-500" primary />
+            <SummaryValue label="Ocupados" value={isLoading || !locatedZones.length ? "--" : totals.occupied} color="bg-rose-500" />
+            <SummaryValue label="Sin confirmar" value={isLoading || !locatedZones.length ? "--" : totals.unknown} color="bg-amber-400" />
+          </div>
+          {locatedZones.length > 0 && locatedZones.length < zones.length ? (
+            <p className="mt-2 text-xs text-white/55">Los totales incluyen solo las zonas con ubicaciones vinculadas.</p>
+          ) : null}
+        </section>
 
-        <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5 xl:col-span-8 xl:row-start-2">
-          <h2 className="text-lg font-semibold tracking-[-.02em]">
-            Colores del último análisis
-          </h2>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {colorRows.map((item) => {
-              const swatch = colorPalette[item.color] ?? colorPalette.Otro;
-              return (
-                <div key={item.color}>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="inline-flex items-center gap-2 font-medium">
-                      <span
-                        className="h-3 w-3 rounded-2xl border border-white/20"
-                        style={{ backgroundColor: swatch }}
-                      />
-                      {item.color}
-                    </span>
-                    <span className="text-white/45">{item.cantidad}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-2xl bg-white/10">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${(item.cantidad / maxColor) * 100}%`,
-                        backgroundColor: swatch,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+        <section aria-labelledby="dashboard-zones-title">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <h2 id="dashboard-zones-title" className="text-lg font-bold">Estado por zona</h2>
+            <Link to="/parking-spaces" className="inline-flex items-center gap-1 text-sm font-semibold text-white/75 hover:text-white">
+              Ver espacios <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {zones.length ? zones.map((zone) => <ZoneRow key={zone.id} zone={zone} />) : (
+              <p className="py-5 text-sm text-white/55">{isLoading ? "Cargando zonas..." : "No se pudo consultar el estado de las zonas."}</p>
+            )}
           </div>
         </section>
-        </div>
+
+        <section aria-labelledby="dashboard-latest-title">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="dashboard-latest-title" className="text-lg font-bold">Último análisis</h2>
+              <p className="mt-1 text-xs text-white/55">
+                {latestAnalysis
+                  ? `AN-${String(latestAnalysis.id_analisis).padStart(3, "0")} · Zona ${latestAnalysis.zone_code ?? "sin asignar"} · ${formatDateTime(latestAnalysis.fecha_analisis)}`
+                  : isLoading ? "Cargando análisis..." : "Aún no hay análisis disponible"}
+              </p>
+            </div>
+            <Link to="/analysis" className="inline-flex items-center gap-1 text-sm font-semibold text-white/75 hover:text-white">
+              Ver historial <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-4 grid gap-5 rounded-3xl border border-white/10 bg-[#0a0a0a] p-5 sm:p-6 md:grid-cols-[minmax(0,1.6fr)_minmax(220px,1fr)] md:items-start">
+            <div className="flex aspect-video max-h-[360px] items-center justify-center overflow-hidden rounded-md bg-white/[.04]">
+              {latestImageUrl ? (
+                <img src={latestImageUrl} alt={`Imagen del último análisis de la zona ${latestAnalysis.zone_code ?? "sin asignar"}`} className="h-full w-full object-contain" />
+              ) : <ImageUp className="h-8 w-8 text-white/35" aria-hidden="true" />}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-white/55">Vehículos en esta imagen</p>
+              <div className="mt-4 grid grid-cols-2 gap-5 border-b border-white/10 pb-5">
+                <div>
+                  <Car className="mb-2 h-5 w-5 text-white/55" aria-hidden="true" />
+                  <p className="text-2xl font-bold tabular-nums">{latestIsOperational ? latestAnalysis.autos_detectados ?? 0 : "--"}</p>
+                  <p className="mt-1 text-xs text-white/55">Autos</p>
+                </div>
+                <div>
+                  <Bike className="mb-2 h-5 w-5 text-white/55" aria-hidden="true" />
+                  <p className="text-2xl font-bold tabular-nums">{latestIsOperational ? latestAnalysis.motocicletas_detectadas ?? 0 : "--"}</p>
+                  <p className="mt-1 text-xs text-white/55">Motocicletas</p>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-white/55">
+                {latestIsOperational
+                  ? "Detecciones de la última imagen; la disponibilidad se calcula por zona."
+                  : "Sin detección operativa en el último registro."}
+              </p>
+              <Link to="/upload" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-white/75 hover:text-white">
+                Cargar nueva imagen <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
       </div>
     </PageScaffold>
   );

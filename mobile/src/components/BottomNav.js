@@ -14,7 +14,7 @@ const items = [
   { key: "my-space", label: "Mi espacio", icon: CarFront },
   { key: "profile", label: "Perfil", icon: UserRound },
 ];
-const ACTIVE_LENS_SIZE = 58;
+const ACTIVE_LENS_SIZE = 48;
 
 export default function BottomNav({ activeTab, onChange }) {
   const [shellWidth, setShellWidth] = useState(0);
@@ -30,7 +30,7 @@ export default function BottomNav({ activeTab, onChange }) {
       damping: 18,
       mass: 0.9,
       stiffness: 180,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   }, [activeIndex, animatedIndex]);
 
@@ -55,8 +55,6 @@ export default function BottomNav({ activeTab, onChange }) {
         style={styles.shell}
         onLayout={(event) => setShellWidth(event.nativeEvent.layout.width)}
       >
-        <View style={styles.shellGlow} />
-
         {itemWidth ? (
           <Animated.View
             style={[
@@ -83,18 +81,13 @@ export default function BottomNav({ activeTab, onChange }) {
                 (hovered || pressed) && styles.itemHovered,
               ]}
             >
-              <Animated.View
-                style={[
-                  styles.iconWrap,
-                  isActive ? styles.iconWrapActive : styles.iconWrapInactive,
-                ]}
-              >
+              <View style={styles.iconWrap}>
                 <Icon
                   size={20}
                   color={isActive ? colors.black : colors.textMuted}
                   strokeWidth={2.2}
                 />
-              </Animated.View>
+              </View>
             </Pressable>
           );
         })}
@@ -107,7 +100,7 @@ const styles = StyleSheet.create({
   wrapper: {
     position: "absolute",
     right: spacing.screen,
-    bottom: 18,
+    bottom: 12,
     left: spacing.screen,
   },
   shell: {
@@ -116,8 +109,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
-    paddingVertical: 12,
-    borderRadius: 46,
+    paddingVertical: 8,
+    borderRadius: 36,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "rgba(7,8,10,0.96)",
@@ -127,55 +120,31 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 12,
   },
-  shellGlow: {
-    position: "absolute",
-    top: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    backgroundColor: colors.liquidHighlight,
-    opacity: 0.85,
-  },
   activeLens: {
     position: "absolute",
-    top: "50%",
+    top: 8,
     left: 0,
-    borderRadius: 38,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderRadius: 24,
+    backgroundColor: colors.text,
     shadowColor: "#fff",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    marginTop: -(ACTIVE_LENS_SIZE / 2),
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
   item: {
     flex: 1,
+    height: ACTIVE_LENS_SIZE,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
     zIndex: 2,
-    transform: [{ scale: 1 }],
   },
   itemHovered: {
-    transform: [{ scale: 1.02 }],
+    opacity: 0.8,
   },
   iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
+    width: ACTIVE_LENS_SIZE,
+    height: ACTIVE_LENS_SIZE,
     alignItems: "center",
     justifyContent: "center",
-  },
-  iconWrapActive: {
-    backgroundColor: colors.text,
-    shadowColor: "#fff",
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-  },
-  iconWrapInactive: {
-    backgroundColor: "rgba(255,255,255,0.035)",
   },
 });

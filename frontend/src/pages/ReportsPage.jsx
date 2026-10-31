@@ -1,13 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  CalendarRange,
-  ChevronDown,
-  Download,
-  FileSpreadsheet,
-  RefreshCw,
-  Smartphone,
-  ShieldCheck,
-} from "lucide-react";
+import { BarChart3, ChevronDown, CircleHelp, Download, ParkingSquare, RefreshCw } from "lucide-react";
 import PageScaffold from "../components/PageScaffold";
 import { getReportsOverview } from "../services/api";
 
@@ -15,56 +7,19 @@ const formatDateTime = (value) => {
   if (!value) return "Sin datos";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Sin datos";
-  return new Intl.DateTimeFormat("es-PE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short" }).format(date);
 };
 
-const formatSourceLabel = (value) => {
-  if (value === "analisis") return "Analisis";
-  if (value === "usuario") return "Usuario";
-  return "Combinado";
-};
-
-const formatPercentage = (value) =>
-  typeof value === "number" ? `${value}%` : "--";
+const formatPercentage = (value) => typeof value === "number" ? `${value}%` : "--";
+const formatSource = (value) => value === "analisis" ? "Análisis" : "Estudiante";
 
 const downloadCsv = (rows) => {
-  const headers = [
-    "Fecha",
-    "Zona",
-    "Espacio",
-    "Estado",
-    "Fuente",
-    "Usuario",
-    "Tiempo estimado",
-    "Confirmacion",
-    "Detalle",
-  ];
-
-  const csvRows = [
-    headers.join(","),
-    ...rows.map((row) =>
-      [
-        formatDateTime(row.timestamp),
-        row.zone,
-        row.space_code,
-        row.status,
-        row.source,
-        row.user_name,
-        row.estimated_hours,
-        row.confirmation,
-        row.detail,
-      ]
-        .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`)
-        .join(","),
-    ),
-  ];
-
-  const blob = new Blob([csvRows.join("\n")], {
-    type: "text/csv;charset=utf-8;",
-  });
+  const headers = ["Fecha", "Zona", "Espacio", "Estado", "Fuente", "Usuario", "Tiempo estimado", "Confirmación", "Detalle"];
+  const values = rows.map((row) => [
+    formatDateTime(row.timestamp), row.zone, row.space_code, row.status, row.source,
+    row.user_name, row.estimated_hours, row.confirmation, row.detail,
+  ].map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","));
+  const blob = new Blob([[headers.join(","), ...values].join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -83,338 +38,162 @@ export default function ReportsPage({ onLogout }) {
 
   useEffect(() => {
     let mounted = true;
-
-    const loadReports = async () => {
-      setIsLoading(true);
-      setError("");
-      try {
-        const payload = await getReportsOverview();
-        if (!mounted) return;
-        setReport(payload);
-      } catch {
-        if (mounted) {
-          setError("No se pudieron cargar los reportes operativos.");
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadReports();
-
-    return () => {
-      mounted = false;
-    };
+    getReportsOverview()
+      .then((payload) => { if (mounted) setReport(payload); })
+      .catch(() => { if (mounted) setError("No se pudieron cargar los reportes operativos."); })
+      .finally(() => { if (mounted) setIsLoading(false); });
+    return () => { mounted = false; };
   }, []);
 
-  const zoneOptions = useMemo(() => report?.zones ?? [], [report?.zones]);
-
-  const reportRows = report?.records ?? [];
-  const reportNow = report?.generated_at
-    ? new Date(report.generated_at).getTime()
-    : 0;
-  const filteredRecords = reportRows.filter((row) => {
-    const matchesZone =
-      zoneFilter === "all" || row.zone === zoneOptions.find((zone) => zone.id === zoneFilter)?.title;
+  const zones = useMemo(() => report?.zones ?? [], [report?.zones]);
+  const reportNow = report?.generated_at ? new Date(report.generated_at).getTime() : 0;
+  const filteredRecords = (report?.records ?? []).filter((row) => {
+    const matchesZone = zoneFilter === "all" || row.zone === zones.find((zone) => zone.id === zoneFilter)?.title;
     const matchesSource = sourceFilter === "all" || row.source === sourceFilter;
-
-    const rowDate = row.timestamp ? new Date(row.timestamp).getTime() : 0;
-    const matchesDate =
-      dateFilter === "all" ||
-      (dateFilter === "today" && reportNow - rowDate <= 24 * 60 * 60 * 1000) ||
-      (dateFilter === "week" && reportNow - rowDate <= 7 * 24 * 60 * 60 * 1000);
-
+    const age = reportNow - (row.timestamp ? new Date(row.timestamp).getTime() : 0);
+    const matchesDate = dateFilter === "all" || (
+      age >= 0 && age <= (dateFilter === "today" ? 1 : 7) * 24 * 60 * 60 * 1000
+    );
     return matchesZone && matchesSource && matchesDate;
   });
-
-  const chartPoints = report?.chart_points ?? [];
-  const chartMax = Math.max(...chartPoints.map((item) => item.occupancy_percentage), 1);
+  const reviewedZones = zones.filter((zone) => zone.analysis_available);
+  const totals = reviewedZones.reduce((sum, zone) => ({
+    free: sum.free + (zone.free_spaces ?? 0),
+    occupied: sum.occupied + (zone.occupied_spaces ?? 0),
+    unknown: sum.unknown + (zone.unknown_spaces ?? 0),
+    capacity: sum.capacity + zone.total_spaces,
+  }), { free: 0, occupied: 0, unknown: 0, capacity: 0 });
 
   return (
     <PageScaffold
       title="Reportes"
-      description="Indicadores operativos de ocupación, disponibilidad y actividad del sistema AeroPark Vision."
+      description="Disponibilidad actual, revisiones por zona y registros del estacionamiento."
       module="reports"
       onLogout={onLogout}
     >
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[26px] border border-white/10 bg-[#0a0a0a] px-4 py-4">
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
-              Centro de reportes
-            </p>
-            <h2 className="mt-1 text-lg font-black sm:text-xl">
-              {report?.range_label ?? "Cargando rango"}
-            </h2>
-          </div>
-        </div>
-
+      <div className="space-y-8 text-white">
         {isLoading ? (
-          <div className="flex min-h-[240px] items-center justify-center rounded-3xl border border-white/10 bg-[#0a0a0a] text-white/60">
-            <RefreshCw className="mr-3 h-5 w-5 animate-spin" />
-            Cargando reportes...
+          <div className="flex min-h-[240px] items-center justify-center text-white/60">
+            <RefreshCw className="mr-3 h-5 w-5 animate-spin" /> Cargando reportes...
           </div>
         ) : error ? (
-          <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-bold text-red-200">
-            {error}
-          </div>
+          <div className="rounded border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-bold text-red-200">{error}</div>
         ) : (
           <>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <SummaryCard
-                label="Analisis realizados"
-                value={report.summary.total_analyses}
-                meta="Procesamientos registrados"
-                icon={FileSpreadsheet}
-              />
-              <SummaryCard
-                label="Ocupacion promedio"
-                value={`${report.summary.average_occupancy_percentage}%`}
-                meta="Promedio del periodo"
-                icon={CalendarRange}
-              />
-              <SummaryCard
-                label="Libres promedio"
-                value={report.summary.average_free_spaces}
-                meta="Espacios libres estimados"
-                icon={CalendarRange}
-              />
-              <SummaryCard
-                label="Ocupados promedio"
-                value={report.summary.average_occupied_spaces}
-                meta="Espacios ocupados estimados"
-                icon={CalendarRange}
-              />
-              <SummaryCard
-                label="Ultima actualizacion"
-                value={formatDateTime(report.summary.last_updated)}
-                meta="Corte operativo mas reciente"
-                icon={RefreshCw}
-                compact
-              />
-            </div>
-
-            <section className="rounded-[26px] border border-white/10 bg-[#0a0a0a] p-4">
-              <SectionTitle
-                eyebrow="Zonas"
-                title="Reporte por estacionamiento"
-                description="Comparación de disponibilidad entre las zonas A y B del estacionamiento."
-              />
-              <div className="grid gap-3 md:grid-cols-3">
-                {report.zones.map((zone) => (
-                  <div
-                    key={zone.id}
-                    className="rounded-[22px] border border-white/10 bg-white/[.03] p-3.5"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
-                          {zone.id}
-                        </p>
-                        <h3 className="mt-1.5 text-base font-black">{zone.title}</h3>
-                      </div>
-                      <span className="shrink-0 rounded-xl border border-white/10 bg-white/[.03] px-2 py-1 text-[11px] font-bold text-white/60">
-                        {formatPercentage(zone.occupancy_percentage)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-white/55">
-                      Ultima revision: {formatDateTime(zone.last_review)}
-                    </p>
-                    <div className="mt-3 grid grid-cols-2 gap-2.5 text-sm">
-                      <Metric label="Libres" value={zone.free_spaces} compact />
-                      <Metric label="Ocupados" value={zone.occupied_spaces} compact />
-                      <Metric
-                        label="% actual"
-                        value={formatPercentage(zone.occupancy_percentage)}
-                        compact
-                      />
-                      <Metric
-                        label="% prom."
-                        value={formatPercentage(zone.average_occupancy_percentage)}
-                        compact
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="grid gap-3 xl:grid-cols-2">
-              <div className="rounded-[26px] border border-white/10 bg-[#0a0a0a] p-4">
-                <SectionTitle
-                  eyebrow="Mobile"
-                  title="Uso de la app"
-                  description="Indicadores de ocupación y liberación registrados por los usuarios."
-                  icon={Smartphone}
-                />
-                <div className="grid gap-2.5 sm:grid-cols-2">
-                  <Metric label="Ocupaciones manuales" value={report.mobile_usage.manual_occupations} />
-                  <Metric label="Liberaciones" value={report.mobile_usage.manual_releases} />
-                  <Metric label="Activos ahora" value={report.mobile_usage.active_user_spaces} />
-                  <Metric
-                    label="Vencidos sin confirmar"
-                    value={report.mobile_usage.expired_without_confirmation}
-                  />
-                  <Metric
-                    label="Tiempo promedio"
-                    value={`${report.mobile_usage.average_estimated_hours} h`}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-[26px] border border-white/10 bg-[#0a0a0a] p-4">
-                <SectionTitle
-                  eyebrow="Consistencia"
-                  title="Cruce analisis vs usuario"
-                  description="Indicadores para evaluar la consistencia entre los registros manuales y el último análisis del sistema."
-                  icon={ShieldCheck}
-                />
-                <div className="grid gap-2.5 sm:grid-cols-2">
-                  <Metric
-                    label="Ocupados detectados"
-                    value={report.consistency.analysis_detected_occupied}
-                  />
-                  <Metric
-                    label="Activos manuales"
-                    value={report.consistency.manual_active_reports}
-                  />
-                  <Metric
-                    label="Diferencia"
-                    value={report.consistency.difference_count}
-                  />
-                  <Metric
-                    label="Coincidencia"
-                    value={`${report.consistency.agreement_percentage}%`}
-                  />
-                  <Metric
-                    label="Pendientes"
-                    value={report.consistency.pending_confirmation}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-[26px] border border-white/10 bg-[#0a0a0a] p-4">
-              <SectionTitle
-                eyebrow="Tendencia"
-                title="Evolucion de ocupacion"
-                description="Análisis recientes para observar la evolución operativa del estacionamiento."
-              />
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {chartPoints.map((point) => (
-                  <div key={point.id} className="rounded-[22px] bg-white/[.03] p-3.5">
-                    <div className="mb-2.5 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-black">{point.label}</p>
-                        <p className="text-xs text-white/45">{point.zone}</p>
-                      </div>
-                      <span className="text-sm font-black text-white/75">
-                        {point.occupancy_percentage}%
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-white"
-                        style={{
-                          width: `${(point.occupancy_percentage / chartMax) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="mt-2.5 text-xs text-white/55">
-                      {point.occupied_spaces} ocupados · {point.free_spaces} libres
-                    </p>
-                    <p className="mt-1 text-xs text-white/35">
-                      {formatDateTime(point.timestamp)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-[26px] border border-white/10 bg-[#0a0a0a] p-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <section aria-labelledby="report-current-title">
+              <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
-                    Registros
-                  </p>
-                  <h2 className="mt-1 text-lg font-black">Tabla operativa</h2>
-                  <p className="mt-1.5 text-sm text-white/52">
-                    Entradas combinadas del sistema de analisis y de la app mobile.
+                  <h2 id="report-current-title" className="text-lg font-black">Disponibilidad actual</h2>
+                  <p className="mt-1 text-xs text-white/55">
+                    {reviewedZones.length === zones.length
+                      ? `${totals.capacity} espacios en zonas A y B`
+                      : `${reviewedZones.length} de ${zones.length} zonas con análisis`}
                   </p>
                 </div>
-                <span className="rounded-xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-bold text-white/60">
-                  {filteredRecords.length} registros
-                </span>
+                <p className="text-xs text-white/55">Última revisión: {formatDateTime(report.summary.last_updated)}</p>
               </div>
+              <div className="mt-5 grid grid-cols-2 gap-x-5 gap-y-5 border-y border-white/10 py-5 lg:grid-cols-4">
+                <ReportCount icon={ParkingSquare} label="Libres" value={reviewedZones.length ? totals.free : "--"} primary />
+                <ReportCount label="Ocupados" value={reviewedZones.length ? totals.occupied : "--"} />
+                <ReportCount icon={CircleHelp} label="Sin confirmar" value={reviewedZones.length ? totals.unknown : "--"} />
+                <ReportCount icon={BarChart3} label="Análisis registrados" value={report.summary.total_analyses} />
+              </div>
+            </section>
 
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <FilterSelect value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+            <section aria-labelledby="report-zones-title">
+              <h2 id="report-zones-title" className="text-lg font-black">Estado por zona</h2>
+              <div className="mt-3 border-t border-white/10">
+                {zones.map((zone) => <ZoneReportRow key={zone.id} zone={zone} />)}
+              </div>
+            </section>
+
+            <section aria-labelledby="report-analysis-title">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <h2 id="report-analysis-title" className="text-lg font-black">Últimos análisis</h2>
+                <span className="text-xs text-white/55">{report.range_label}</span>
+              </div>
+              <div className="mt-3 border-t border-white/10">
+                {report.chart_points.length ? report.chart_points.map((point) => (
+                  <div key={point.id} className="grid gap-2 border-b border-white/10 py-3 text-sm sm:grid-cols-[110px_minmax(130px,1fr)_minmax(120px,2fr)_60px] sm:items-center sm:gap-4">
+                    <span className="font-bold">{point.label} · {point.zone}</span>
+                    <span className="text-xs text-white/55">{formatDateTime(point.timestamp)}</span>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10" aria-hidden="true">
+                      <div className="h-full bg-rose-500" style={{ width: `${Math.min(Math.max(point.occupancy_percentage, 0), 100)}%` }} />
+                    </div>
+                    <strong className="text-right tabular-nums">{formatPercentage(point.occupancy_percentage)}</strong>
+                  </div>
+                )) : <p className="py-5 text-sm text-white/55">Aún no hay análisis registrados.</p>}
+              </div>
+            </section>
+
+            <section aria-labelledby="report-activity-title">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 id="report-activity-title" className="text-lg font-black">Actividad de espacios</h2>
+                  <p className="mt-1 text-xs text-white/55">
+                    {report.mobile_usage.active_user_spaces} espacios marcados desde la app
+                    {report.mobile_usage.expired_without_confirmation > 0
+                      ? ` · ${report.mobile_usage.expired_without_confirmation} pendientes de confirmación`
+                      : ""}
+                  </p>
+                </div>
+                <span className="text-xs text-white/55">{filteredRecords.length} registros</span>
+              </div>
+              <div className="my-4 flex flex-wrap items-center gap-2">
+                <FilterSelect label="Periodo" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
                   <option value="all">Todo el periodo</option>
-                  <option value="today">Ultimas 24h</option>
-                  <option value="week">Ultimos 7 dias</option>
+                  <option value="today">Últimas 24 h</option>
+                  <option value="week">Últimos 7 días</option>
                 </FilterSelect>
-                <FilterSelect value={zoneFilter} onChange={(event) => setZoneFilter(event.target.value)}>
+                <FilterSelect label="Zona" value={zoneFilter} onChange={(event) => setZoneFilter(event.target.value)}>
                   <option value="all">Todas las zonas</option>
-                  {zoneOptions.map((zone) => (
-                    <option key={zone.id} value={zone.id}>
-                      {zone.title}
-                    </option>
-                  ))}
+                  {zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.title}</option>)}
                 </FilterSelect>
-                <FilterSelect value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+                <FilterSelect label="Fuente" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
                   <option value="all">Todas las fuentes</option>
-                  <option value="analisis">Analisis</option>
-                  <option value="usuario">Usuario</option>
+                  <option value="analisis">Análisis</option>
+                  <option value="usuario">Estudiante</option>
                 </FilterSelect>
                 <button
                   type="button"
                   onClick={() => downloadCsv(filteredRecords)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-bold text-white transition hover:bg-white/[.08]"
+                  disabled={!filteredRecords.length}
+                  className="inline-flex items-center gap-2 rounded border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-bold text-white transition hover:bg-white/[.08] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Download className="h-4 w-4" />
-                  Exportar CSV
+                  <Download className="h-4 w-4" /> Exportar CSV
                 </button>
               </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="text-white/45">
+              <div className="overflow-x-auto border-t border-white/10">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead className="text-xs text-white/55">
                     <tr className="border-b border-white/10">
-                      <th className="px-2.5 py-2.5 font-semibold">Fecha</th>
-                      <th className="px-2.5 py-2.5 font-semibold">Zona</th>
-                      <th className="px-2.5 py-2.5 font-semibold">Espacio</th>
-                      <th className="px-2.5 py-2.5 font-semibold">Estado</th>
-                      <th className="px-2.5 py-2.5 font-semibold">Fuente</th>
-                      <th className="px-2.5 py-2.5 font-semibold">Usuario</th>
-                      <th className="px-2.5 py-2.5 font-semibold">Tiempo</th>
-                      <th className="px-2.5 py-2.5 font-semibold">Confirmacion</th>
-                      <th className="px-2.5 py-2.5 font-semibold">Detalle</th>
+                      <th className="px-2 py-3 font-semibold">Fecha</th>
+                      <th className="px-2 py-3 font-semibold">Zona</th>
+                      <th className="px-2 py-3 font-semibold">Estado</th>
+                      <th className="px-2 py-3 font-semibold">Espacio</th>
+                      <th className="px-2 py-3 font-semibold">Fuente</th>
+                      <th className="px-2 py-3 font-semibold">Detalle</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredRecords.map((row) => (
-                      <tr key={row.id} className="border-b border-white/5 align-top">
-                        <td className="px-2.5 py-2.5 text-white/75">{formatDateTime(row.timestamp)}</td>
-                        <td className="px-2.5 py-2.5">{row.zone}</td>
-                        <td className="px-2.5 py-2.5">{row.space_code}</td>
-                        <td className="px-2.5 py-2.5">
-                          <span className="rounded-xl border border-white/10 bg-white/[.03] px-2 py-1 text-[11px] font-bold">
-                            {row.status}
-                          </span>
+                      <tr key={row.id} className="border-b border-white/10 align-top">
+                        <td className="whitespace-nowrap px-2 py-3 text-white/70">{formatDateTime(row.timestamp)}</td>
+                        <td className="px-2 py-3">{row.zone}</td>
+                        <td className="px-2 py-3 font-semibold">{row.status}</td>
+                        <td className="px-2 py-3 tabular-nums">{row.space_code}</td>
+                        <td className="px-2 py-3 text-white/70">{formatSource(row.source)}</td>
+                        <td className="px-2 py-3 text-white/70">
+                          {row.detail}
+                          {row.confirmation && !["-", "sin vencimiento"].includes(row.confirmation)
+                            ? <span className="block text-xs text-white/55">Confirmación: {row.confirmation}</span>
+                            : null}
                         </td>
-                        <td className="px-2.5 py-2.5 text-white/65">
-                          {formatSourceLabel(row.source)}
-                        </td>
-                        <td className="px-2.5 py-2.5 text-white/75">{row.user_name}</td>
-                        <td className="px-2.5 py-2.5 text-white/75">{row.estimated_hours}</td>
-                        <td className="px-2.5 py-2.5 text-white/75">{row.confirmation}</td>
-                        <td className="px-2.5 py-2.5 text-white/55">{row.detail}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {!filteredRecords.length ? <p className="py-6 text-sm text-white/55">No hay registros para estos filtros.</p> : null}
               </div>
             </section>
           </>
@@ -424,64 +203,60 @@ export default function ReportsPage({ onLogout }) {
   );
 }
 
-function SummaryCard({ label, value, meta, icon: Icon, compact = false }) {
+function ReportCount({ icon: Icon, label, value, primary = false }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-[#0a0a0a] p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
-          {label}
-        </p>
-        {Icon ? <Icon className="h-4 w-4 text-white/35" /> : null}
-      </div>
-      <p className={compact ? "text-base font-black leading-tight" : "text-2xl font-black leading-tight"}>
-        {value}
+    <div className="min-w-0">
+      <p className="flex items-center gap-2 text-xs font-bold text-white/55">
+        {Icon ? <Icon className="h-4 w-4" /> : null}{label}
       </p>
-      <p className="mt-1.5 text-xs text-white/52">{meta}</p>
+      <p className={`mt-2 font-black leading-none tabular-nums ${primary ? "text-4xl" : "text-2xl"}`}>{value}</p>
     </div>
   );
 }
 
-function SectionTitle({ eyebrow, title, description, icon: Icon }) {
+function ZoneReportRow({ zone }) {
+  const total = zone.total_spaces || 1;
+  const segments = [
+    { label: "libres", count: zone.free_spaces ?? 0, color: "bg-emerald-500" },
+    { label: "ocupados", count: zone.occupied_spaces ?? 0, color: "bg-rose-500" },
+    { label: "sin confirmar", count: zone.unknown_spaces ?? 0, color: "bg-amber-400" },
+  ];
   return (
-    <div className="mb-4 flex items-start justify-between gap-4">
+    <div className="grid gap-4 border-b border-white/10 py-5 lg:grid-cols-[minmax(180px,1fr)_minmax(260px,2fr)_minmax(160px,1fr)] lg:items-center">
       <div>
-        <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
-          {eyebrow}
-        </p>
-        <h2 className="mt-1 text-lg font-black">{title}</h2>
-        <p className="mt-1.5 max-w-2xl text-sm text-white/52">{description}</p>
+        <h3 className="font-black">Zona {zone.id}</h3>
+        <p className="mt-1 text-xs text-white/55">{zone.total_spaces} espacios · {formatDateTime(zone.last_review)}</p>
       </div>
-      {Icon ? <Icon className="mt-1 h-5 w-5 shrink-0 text-white/35" /> : null}
-    </div>
-  );
-}
-
-function Metric({ label, value, compact = false }) {
-  return (
-    <div className={`rounded-[18px] bg-white/[.03] ${compact ? "p-2.5" : "p-3"}`}>
-      <p
-        className={`text-white/40 ${
-          compact
-            ? "text-[10px] font-black uppercase tracking-[.12em] leading-4"
-            : "text-xs font-black uppercase tracking-[.16em]"
-        }`}
-      >
-        {label}
-      </p>
-      <p className={`font-black ${compact ? "mt-1 text-sm" : "mt-1.5 text-base"}`}>
-        {value}
+      {zone.analysis_available ? (
+        <div>
+          <div className="flex h-2.5 overflow-hidden rounded-full bg-white/10" aria-label={`Zona ${zone.id}: ${segments.map((item) => `${item.count} ${item.label}`).join(", ")}`}>
+            {segments.map((item) => <span key={item.label} className={item.color} style={{ width: `${item.count / total * 100}%` }} />)}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/70">
+            {segments.map((item) => (
+              <span key={item.label} className="inline-flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${item.color}`} />{item.count} {item.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : <p className="text-sm text-white/55">Sin análisis de esta zona</p>}
+      <p className="text-left text-lg font-black tabular-nums lg:text-right">
+        {formatPercentage(zone.occupancy_percentage)}
+        <span className="ml-2 text-xs font-semibold text-white/55">ocupación</span>
       </p>
     </div>
   );
 }
 
-function FilterSelect({ value, onChange, children }) {
+function FilterSelect({ label, value, onChange, children }) {
   return (
     <div className="relative">
       <select
+        aria-label={label}
         value={value}
         onChange={onChange}
-        className="appearance-none rounded-xl border border-white/10 bg-white/[.03] py-2 pl-3 pr-9 text-xs text-white outline-none"
+        className="appearance-none rounded border border-white/10 bg-white/[.03] py-2 pl-3 pr-9 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-white/40"
       >
         {children}
       </select>

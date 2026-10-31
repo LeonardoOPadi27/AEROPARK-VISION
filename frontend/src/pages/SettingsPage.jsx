@@ -43,7 +43,7 @@ export default function SettingsPage({ onLogout }) {
         setForm(toFormState(settingsPayload.mobile));
       } catch {
         if (mounted) {
-          setError("No se pudo cargar la configuración real del sistema.");
+          setError("No se pudo cargar la configuración del sistema.");
         }
       } finally {
         if (mounted) {
@@ -103,9 +103,9 @@ export default function SettingsPage({ onLogout }) {
         mobile: saved,
       }));
       setForm(toFormState(saved));
-      setNotice("Preferencias mobile guardadas correctamente.");
+      setNotice("Preferencias de la app guardadas.");
     } catch {
-      setError("No se pudieron guardar los ajustes mobile.");
+      setError("No se pudieron guardar las preferencias de la app.");
     } finally {
       setIsSaving(false);
     }
@@ -113,7 +113,7 @@ export default function SettingsPage({ onLogout }) {
 
   return (
     <PageScaffold
-      title="Configuracion"
+      title="Configuración"
       description="Configura las reglas operativas para ocupar, liberar y confirmar espacios de estacionamiento."
       module="settings"
       onLogout={onLogout}
@@ -121,7 +121,7 @@ export default function SettingsPage({ onLogout }) {
       {isLoading ? (
         <div className="flex min-h-[260px] items-center justify-center rounded-[26px] border border-white/10 bg-[#0a0a0a] text-white/60">
           <RefreshCw className="mr-3 h-5 w-5 animate-spin" />
-          Cargando configuracion...
+          Cargando configuración...
         </div>
       ) : error && !settings ? (
         <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-bold text-red-200">
@@ -144,9 +144,9 @@ export default function SettingsPage({ onLogout }) {
           <section className="rounded-[26px] border border-white/10 bg-[#0a0a0a] p-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <SectionHeader
-                eyebrow="Mobile"
+                eyebrow="Aplicación móvil"
                 title="Preferencias de la app"
-                description="Define las opciones necesarias para registrar, confirmar y liberar espacios de forma ordenada."
+                description="Reglas para el uso de espacios desde la app del estudiante."
                 icon={Smartphone}
               />
               <button
@@ -163,13 +163,13 @@ export default function SettingsPage({ onLogout }) {
             <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
               <div className="grid gap-3">
                 <ToggleCard
-                  title="Ocupacion manual"
+                  title="Ocupación manual"
                   description="Permite registrar el inicio de uso de un espacio de estacionamiento."
                   checked={form.manual_occupy_enabled}
                   onChange={() => handleToggle("manual_occupy_enabled")}
                 />
                 <ToggleCard
-                  title="Liberacion manual"
+                  title="Liberación manual"
                   description="Permite registrar la liberación de un espacio al finalizar su uso."
                   checked={form.manual_release_enabled}
                   onChange={() => handleToggle("manual_release_enabled")}
@@ -185,7 +185,7 @@ export default function SettingsPage({ onLogout }) {
 
               <div className="grid gap-3 md:grid-cols-2">
                 <FormCard
-                  label="Horas maximas estimadas"
+                  label="Horas máximas estimadas"
                   name="max_estimated_hours"
                   type="number"
                   value={form.max_estimated_hours}
@@ -195,14 +195,14 @@ export default function SettingsPage({ onLogout }) {
                   hint="Tope permitido para lo que el usuario puede indicar al estacionarse."
                 />
                 <FormCard
-                  label="Reconfirmar despues de"
+                  label="Reconfirmar después de"
                   name="pending_confirmation_after_hours"
                   type="number"
                   value={form.pending_confirmation_after_hours}
                   min={1}
                   max={12}
                   onChange={handleInputChange}
-                  hint="Horas de espera antes de solicitar confirmacion al usuario."
+                  hint="Horas de espera antes de solicitar confirmación al estudiante."
                 />
                 <div className="rounded-[22px] border border-white/10 bg-white/[.03] p-3.5 md:col-span-2">
                   <label
@@ -222,7 +222,7 @@ export default function SettingsPage({ onLogout }) {
                     <option value="B">Estacionamiento B</option>
                   </select>
                   <p className="mt-2 text-sm leading-6 text-white/52">
-                    Se puede usar como punto inicial en la experiencia mobile.
+                    Zona que se muestra primero al abrir la app.
                   </p>
                 </div>
               </div>
@@ -273,6 +273,7 @@ function ToggleCard({
         <button
           type="button"
           onClick={onChange}
+          aria-label={title}
           className={`relative h-8 w-14 shrink-0 rounded-full border transition ${
             checked
               ? "border-white/30 bg-white/90 shadow-[0_0_18px_rgba(255,255,255,0.16)]"
@@ -294,11 +295,12 @@ function ToggleCard({
 function FormCard({ label, hint, ...props }) {
   return (
     <div className="rounded-[22px] border border-white/10 bg-white/[.03] p-3.5">
-      <label className="text-xs font-black uppercase tracking-[.18em] text-white/45">
+      <label htmlFor={props.name} className="text-xs font-black uppercase tracking-[.18em] text-white/45">
         {label}
       </label>
       <input
         {...props}
+        id={props.name}
         className="mt-3 h-12 w-full rounded-2xl border border-white/10 bg-black/50 px-4 text-sm font-semibold text-white outline-none transition focus:border-white/30"
       />
       <p className="mt-2 text-sm leading-6 text-white/52">{hint}</p>

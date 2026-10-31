@@ -55,14 +55,16 @@ def _build_zone_metrics(analyses: list[dict], overview: dict) -> list[dict]:
                 "title": zone["title"],
                 "free_spaces": zone["free_spaces"],
                 "occupied_spaces": zone["occupied_spaces"],
+                "unknown_spaces": zone["unknown_spaces"],
                 "total_spaces": zone["total_spaces"],
+                "analysis_available": zone["analysis_available"],
                 "occupancy_percentage": round(
                     (zone["occupied_spaces"] / zone["total_spaces"]) * 100, 1
                 )
                 if zone["total_spaces"] and zone["occupied_spaces"] is not None
                 else None,
                 "average_occupancy_percentage": _average(occupancy_values),
-                "last_review": overview.get("updated_at"),
+                "last_review": zone.get("updated_at"),
             }
         )
     return result
@@ -123,7 +125,7 @@ def _build_consistency_metrics(analyses: list[dict], active_reports: dict) -> di
 
 def _build_chart_points(analyses: list[dict]) -> list[dict]:
     points = []
-    for analysis in reversed(analyses[-8:]):
+    for analysis in analyses[:8]:
         zone = analysis.get("zone_code") or analysis.get("zone_title") or "Zona"
         points.append(
             {
@@ -148,7 +150,7 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
                 "timestamp": analysis.get("fecha_analisis"),
                 "zone": analysis.get("zone_title") or "Zona no definida",
                 "space_code": "-",
-                "status": "ocupacion detectada",
+                "status": "ocupación detectada",
                 "source": "analisis",
                 "user_name": "-",
                 "estimated_hours": "-",
@@ -161,15 +163,7 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
             }
         )
 
-    now = datetime.utcnow()
     for index, event in enumerate(events):
-        confirmation_due_at = _parse_iso(
-            event.get("confirmation_due_at") or event.get("expires_at")
-        )
-        confirmation = "sin vencimiento"
-        if confirmation_due_at:
-            confirmation = "pendiente" if confirmation_due_at <= now else "al dia"
-
         records.append(
             {
                 "id": f"event-{index}",
@@ -190,13 +184,13 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
                     if event.get("estimated_hours") is not None
                     else "-"
                 ),
-                "confirmation": confirmation,
+                "confirmation": "-",
                 "detail": (
-                    "Registro manual desde la app mobile"
+                    "Registro manual desde la app"
                     if event.get("event_type") == "occupy"
-                    else "Confirmacion desde la app mobile"
+                    else "Confirmación desde la app"
                     if event.get("event_type") == "confirm"
-                    else "Liberacion manual desde la app mobile"
+                    else "Liberación manual desde la app"
                 ),
             }
         )
@@ -206,7 +200,7 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
         confirmation_due_at = _parse_iso(
             report.get("confirmation_due_at") or report.get("expires_at")
         )
-        confirmation = "al dia"
+        confirmation = "al día"
         if confirmation_due_at and confirmation_due_at <= now:
             confirmation = "pendiente"
 
@@ -225,7 +219,7 @@ def _build_records(analyses: list[dict], events: list[dict], active_reports: dic
                     else "-"
                 ),
                 "confirmation": confirmation,
-                "detail": "Espacio actualmente marcado desde la app mobile",
+                "detail": "Espacio actualmente marcado desde la app",
             }
         )
 

@@ -36,11 +36,9 @@ export default function SpaceActionSheet({
           <Text style={styles.state}>
             {spaceCatalog[space.status]?.label ?? "Estado no disponible"}
           </Text>
-          <Text style={styles.description}>
-            {canReportOccupancy
-              ? "Marca tu espacio y el tiempo estimado de permanencia."
-              : "Consulta el estado actual de este espacio."}
-          </Text>
+          {canReportOccupancy ? (
+            <Text style={styles.description}>Indica cuánto tiempo estimas permanecer.</Text>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {canReportOccupancy ? (
@@ -58,7 +56,7 @@ export default function SpaceActionSheet({
               </View>
 
               <AppButton
-                label="Estoy estacionado aqui"
+                label="Estoy estacionado aquí"
                 onPress={() => onOccupy(space.code)}
                 disabled={!mobileSettings?.manual_occupy_enabled}
                 style={styles.primaryButton}
@@ -78,10 +76,10 @@ export default function SpaceActionSheet({
             <View style={styles.infoBlock}>
               <Text style={styles.infoText}>
                 {isBlockedByAnotherUser
-                  ? "Este espacio ya fue marcado por otro usuario. Solo su ocupante deberia liberarlo."
+                  ? "Este espacio ya fue marcado por otro usuario. Solo quien lo marcó puede liberarlo."
                   : isSystemOccupied
-                    ? "Este espacio aparece ocupado segun la ultima revision del sistema."
-                    : "Este espacio no esta disponible para cambios manuales ahora mismo."}
+                    ? "Este espacio aparece ocupado según la última revisión."
+                    : "Este espacio no está disponible para cambios manuales."}
               </Text>
             </View>
           )}

@@ -86,6 +86,18 @@ class SecurityAndParkingTests(unittest.TestCase):
         self.assertEqual(client.get("/mobile/reviews", headers=auth).status_code, 200)
         self.assertEqual(client.get("/mobile/parking-overview", headers=auth).status_code, 200)
 
+    def test_registration_capability_matches_register_policy(self):
+        client = TestClient(app)
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled), patch.object(
+                auth_routes, "allow_public_registration", enabled
+            ):
+                response = client.get("/auth/capabilities")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(
+                    response.json()["public_registration_enabled"], enabled
+                )
+
     def test_confirmation_requires_owner_and_resets_due_time(self):
         occupy_space_manually(self.db, "A-001", 2, self.owner.id_usuario, "Owner Test")
         report = self.db.get(ReporteEspacioMovil, "A-001")

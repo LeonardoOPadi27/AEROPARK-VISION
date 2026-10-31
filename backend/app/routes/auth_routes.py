@@ -21,6 +21,12 @@ allow_public_registration = os.getenv(
     "false" if is_production else "true",
 ).lower() == "true"
 
+
+@router.get("/capabilities")
+def auth_capabilities():
+    return {"public_registration_enabled": allow_public_registration}
+
+
 @router.post("/register", response_model=UsuarioResponse)
 def register(user: UsuarioCreate, db: Session = Depends(get_db)):
     if not allow_public_registration:

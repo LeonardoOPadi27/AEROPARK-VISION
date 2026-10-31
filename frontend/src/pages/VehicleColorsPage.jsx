@@ -116,10 +116,10 @@ export default function VehicleColorsPage({ onLogout }) {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-[#0a0a0a] p-5">
           <div>
             <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
-              Vehículos detectados
+              {scope === "latest" ? "Último análisis" : "Todos los análisis"}
             </p>
             <h2 className="mt-1 text-xl font-black">
-              {activeSummary?.total_vehicles ?? 0} registros por color
+              {isLoading ? "Cargando..." : `${activeSummary?.total_vehicles ?? 0} detecciones con color`}
             </h2>
           </div>
           <div className="liquid-segmented-control relative inline-grid w-[170px] grid-cols-2 rounded-full p-1 text-xs font-medium">
@@ -171,49 +171,32 @@ export default function VehicleColorsPage({ onLogout }) {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5">
+              <div className="mb-5 flex items-center gap-2 text-sm font-black text-white/75">
+                <BarChart3 className="h-5 w-5 text-white/45" />
+                Distribución por color
+              </div>
+              <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
                 {colors.map((item) => (
-                  <div
-                    key={item.name}
-                    className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5"
-                  >
-                    <span
-                      className="mb-5 block h-10 w-10 rounded-2xl border border-white/10"
-                      style={{ backgroundColor: item.swatch }}
-                    />
-                    <p className="text-3xl font-black">{item.count}</p>
-                    <p className="mt-2 text-base font-bold text-white/65">
-                      {item.name}
-                    </p>
+                  <div key={item.name}>
+                    <div className="mb-2 flex items-center justify-between text-sm font-bold">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="h-3 w-3 rounded-full border border-white/10" style={{ backgroundColor: item.swatch }} />
+                        {item.name}
+                      </span>
+                      <span className="text-white/55">{item.count}</span>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-2xl bg-white/10">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${(item.count / maxCount) * 100}%`,
+                          backgroundColor: item.swatch,
+                        }}
+                      />
+                    </div>
                   </div>
                 ))}
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5">
-                <div className="mb-5 flex items-center gap-2 text-sm font-black text-white/75">
-                  <BarChart3 className="h-5 w-5 text-white/45" />
-                  Distribución
-                </div>
-                <div className="space-y-4">
-                  {colors.map((item) => (
-                    <div key={item.name}>
-                      <div className="mb-2 flex items-center justify-between text-sm font-bold">
-                        <span>{item.name}</span>
-                        <span className="text-white/55">{item.count}</span>
-                      </div>
-                      <div className="h-3 overflow-hidden rounded-2xl bg-white/10">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${(item.count / maxCount) * 100}%`,
-                            backgroundColor: item.swatch,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -264,7 +247,7 @@ export default function VehicleColorsPage({ onLogout }) {
                           </p>
                         </div>
                         <span className="rounded-2xl border border-white/10 bg-white/[.03] px-3 py-1 text-xs font-black text-white">
-                          {row.analysis_mode}
+                          {row.analysis_mode === "yolo" ? "YOLO" : row.analysis_mode === "mock" ? "Simulado" : "No disponible"}
                         </span>
                       </div>
 

@@ -49,6 +49,43 @@ class AssignmentTests(unittest.TestCase):
         self.assertTrue(result["coverage_complete"])
         self.assertEqual(result["free_spaces"], 46)
 
+    def test_zone_a_reference_photo_maps_vehicles_to_distinct_spaces(self):
+        template = get_default_calibration("A", 5280, 3956)
+        motorcycles = [
+            (1843, 2680), (1883, 2631), (1904, 2567), (1928, 2500),
+            (1937, 2428), (1964, 2372), (1974, 2298), (1985, 2236),
+            (2013, 2183), (2036, 2044), (2064, 1990), (2089, 1919),
+            (2100, 1844), (2089, 1770),
+        ]
+        upper_cars = [
+            (2686, 1681), (2835, 1716), (2975, 1738), (3122, 1785),
+            (3264, 1834), (3414, 1874), (3552, 1906), (3846, 1952),
+        ]
+        lower_cars = [
+            (2584, 3326), (2798, 3275), (2984, 3228), (3218, 3190),
+            (3416, 3144), (3623, 3095), (3866, 3044),
+        ]
+        detections = [
+            {"bbox": [x - 50, y - 25, x + 50, y + 25]}
+            for x, y in motorcycles
+        ] + [
+            {"bbox": [x - 70, y - 110, x + 70, y + 110]}
+            for x, y in upper_cars
+        ] + [
+            {"bbox": [x - 120, y - 105, x + 120, y + 105]}
+            for x, y in lower_cars
+        ]
+
+        result = assign_detections(template, detections)
+
+        self.assertEqual(result["occupied_spaces"], 29)
+        self.assertEqual(result["free_spaces"], 17)
+        self.assertEqual(result["unknown_spaces"], 0)
+        self.assertEqual(result["unmatched_detections"], 0)
+        by_code = {space["code"]: space["status"] for space in result["spaces"]}
+        self.assertEqual(by_code["A-039"], "free")
+        self.assertTrue(all(by_code[f"A-{number:03d}"] == "occupied" for number in range(40, 47)))
+
     def test_partial_manual_calibration_overrides_template_without_hiding_slots(self):
         template = get_default_calibration("A", 5280, 3956)
         manual_space = rectangle("A-001", .1, .4)

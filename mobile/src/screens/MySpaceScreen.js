@@ -2,10 +2,11 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import AppButton from "../components/AppButton";
 import GlassCard from "../components/GlassCard";
 import SectionHeader from "../components/SectionHeader";
+import ZoneImage from "../components/ZoneImage";
 import { colors, radii, spacing } from "../theme";
 
 function formatRemainingTime(expiresAt) {
-  if (!expiresAt) return "Sin hora limite";
+  if (!expiresAt) return "Sin hora límite";
 
   const diffMs = new Date(expiresAt).getTime() - Date.now();
   if (Number.isNaN(diffMs)) return "Tiempo no disponible";
@@ -20,17 +21,6 @@ function formatRemainingTime(expiresAt) {
   return `${hours} h ${minutes} min restantes`;
 }
 
-function buildRouteHint(space) {
-  if (!space?.zone) return null;
-
-  const hints = {
-    A: "Cerca del ingreso principal y el acceso peatonal.",
-    B: "Ubicacion intermedia junto a los pabellones.",
-  };
-
-  return hints[space.zone.id] ?? null;
-}
-
 export default function MySpaceScreen({
   user,
   mySpace,
@@ -40,22 +30,20 @@ export default function MySpaceScreen({
   mobileSettings,
   onOpenSpaces,
 }) {
-  const routeHint = buildRouteHint(mySpace);
-
   return (
     <ScrollView
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
       <SectionHeader
-        eyebrow="Accion rapida"
+        eyebrow="Estacionamiento"
         title="Mi espacio"
-        description="Gestiona tu estacionamiento actual sin volver a buscar entre todas las zonas."
       />
 
       {mySpace ? (
         <>
           <GlassCard>
+            <ZoneImage zoneId={mySpace.zone.id} height={108} style={styles.zoneImage} />
             <Text style={styles.statusLabel}>Espacio activo</Text>
             <Text style={styles.spaceCode}>{mySpace.space.display_code ?? mySpace.space.code}</Text>
             <Text style={styles.spaceMeta}>
@@ -72,9 +60,9 @@ export default function MySpaceScreen({
                 </Text>
               </View>
               <View style={styles.statBlock}>
-                <Text style={styles.statLabel}>Confirmacion</Text>
+                <Text style={styles.statLabel}>Confirmación</Text>
                 <Text style={styles.statValue}>
-                  {mySpace.space.confirmation_required ? "Pendiente" : "Al dia"}
+                  {mySpace.space.confirmation_required ? "Pendiente" : "Al día"}
                 </Text>
               </View>
             </View>
@@ -95,22 +83,15 @@ export default function MySpaceScreen({
             />
           </GlassCard>
 
-          <GlassCard>
-            <Text style={styles.cardTitle}>Indicacion rapida</Text>
-            <Text style={styles.cardBody}>
-              {routeHint ??
-                "Luego podremos conectar una guia visual o enlace externo de navegacion cuando tengamos coordenadas exactas por espacio."}
-            </Text>
-          </GlassCard>
         </>
       ) : (
         <>
           <GlassCard>
-            <Text style={styles.emptyTitle}>Aun no tienes un espacio activo</Text>
+            <Text style={styles.emptyTitle}>Aún no tienes un espacio activo</Text>
             <Text style={styles.emptyBody}>
               {user?.nombres
-                ? `${user.nombres}, entra a una zona y marca tu cajon apenas te estaciones.`
-                : "Entra a una zona y marca tu cajon apenas te estaciones."}
+                ? `${user.nombres}, entra a una zona y marca el espacio que ocupas.`
+                : "Entra a una zona y marca el espacio que ocupas."}
             </Text>
             <AppButton
               label="Buscar espacio"
@@ -131,6 +112,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     paddingBottom: 132,
     gap: spacing.block,
+  },
+  zoneImage: {
+    marginBottom: 16,
   },
   statusLabel: {
     color: colors.user,
@@ -177,17 +161,6 @@ const styles = StyleSheet.create({
   },
   secondaryButton: { marginTop: 10 },
   actionError: { color: colors.occupied, marginTop: 12, fontSize: 13 },
-  cardTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  cardBody: {
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 10,
-  },
   emptyTitle: {
     color: colors.text,
     fontSize: 24,

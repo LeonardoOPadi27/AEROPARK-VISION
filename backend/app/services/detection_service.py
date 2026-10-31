@@ -21,6 +21,7 @@ ZONE_A_WEIGHTS_PATH = PROJECT_ROOT / "ai-model" / "weights" / "zone_a_best.pt"
 DEFAULT_TOTAL_SPACES = int(os.getenv("TOTAL_PARKING_SPACES", "35"))
 TRAINED_CLASS_NAMES = {"car", "motorcycle"}
 DEFAULT_MAX_SOURCE_DIMENSION = 1600
+ZONE_B_STITCHED_ASPECT = 3100 / 5990
 
 
 def _get_inference_size() -> int:
@@ -98,13 +99,32 @@ def _box_iou(first: list[int], second: list[int]) -> float:
     return intersection / union if union else 0.0
 
 
-def _suppress_duplicate_detections(detections: list[dict]) -> list[dict]:
+def _box_overlap_smaller(first: list[int], second: list[int]) -> float:
+    left = max(first[0], second[0])
+    top = max(first[1], second[1])
+    right = min(first[2], second[2])
+    bottom = min(first[3], second[3])
+    intersection = max(0, right - left) * max(0, bottom - top)
+    first_area = max(0, first[2] - first[0]) * max(0, first[3] - first[1])
+    second_area = max(0, second[2] - second[0]) * max(0, second[3] - second[1])
+    smaller_area = min(first_area, second_area)
+    return intersection / smaller_area if smaller_area else 0.0
+
+
+def _suppress_duplicate_detections(
+    detections: list[dict], *, include_partial_overlap: bool = False
+) -> list[dict]:
     """Keep the strongest box when the same vehicle is detected twice."""
     kept: list[dict] = []
     for detection in sorted(detections, key=lambda item: item["confidence"], reverse=True):
         is_duplicate = any(
             detection["label"] == accepted["label"]
-            and _box_iou(detection["bbox"], accepted["bbox"]) >= 0.40
+            and (
+                _box_iou(detection["bbox"], accepted["bbox"]) >= 0.40
+                or include_partial_overlap
+                and _box_iou(detection["bbox"], accepted["bbox"]) >= 0.20
+                and _box_overlap_smaller(detection["bbox"], accepted["bbox"]) >= 0.60
+            )
             for accepted in kept
         )
         if not is_duplicate:
@@ -406,6 +426,7 @@ def detect_vehicles_with_yolo(image_path: Path, zone_code: str | None = None) ->
             confidences: list[float] = []
             normalized_zone = (zone_code or "").strip().upper()
             use_zone_a_model = normalized_zone == "A" and ZONE_A_WEIGHTS_PATH.exists()
+            is_stitched = False
             model = YOLO(str(ZONE_A_WEIGHTS_PATH if use_zone_a_model else get_weights_path()))
 
             if use_zone_a_model:
@@ -414,10 +435,9 @@ def detect_vehicles_with_yolo(image_path: Path, zone_code: str | None = None) ->
                 with Image.open(prepared_path) as prepared:
                     width, height = prepared.size
                     regions = (
-                        ("motorcycle", (0.065, 0.224, 0.230, 0.630), 0.45),
-                        ("motorcycle", (0.220, 0.250, 0.390, 0.680), 0.10),
-                        ("car", (0.322, 0.137, 0.860, 0.414), 0.25),
-                        ("car", (0.223, 0.588, 0.921, 0.928), 0.25),
+                        ("motorcycle", (0.320, 0.410, 0.430, 0.720), 0.45),
+                        ("car", (0.430, 0.340, 0.790, 0.560), 0.40),
+                        ("car", (0.430, 0.710, 0.800, 0.910), 0.40),
                     )
                     raw_detections = []
                     for index, (expected_label, box, minimum_confidence) in enumerate(regions):
@@ -435,6 +455,56 @@ def detect_vehicles_with_yolo(image_path: Path, zone_code: str | None = None) ->
                                 continue
                             x1, y1, x2, y2 = [int(value) for value in detected.xyxy[0].tolist()]
                             raw_detections.append((label, confidence, [x1 + left, y1 + top, x2 + left, y2 + top]))
+            elif normalized_zone == "B":
+                with Image.open(prepared_path) as prepared:
+                    width, height = prepared.size
+                    is_stitched = abs(width / height - ZONE_B_STITCHED_ASPECT) <= 0.005
+                    if is_stitched:
+                        raw_detections = []
+                        # Overlapping tiles keep cars large; each tile owns only
+                        # centers in its non-overlapping core.
+                        x_ranges = [(0, round(width * 0.63)),
+                                    (round(width * 0.37), width)]
+                        y_ranges = [
+                            (0, round(height * 0.36)),
+                            (round(height * 0.20), round(height * 0.60)),
+                            (round(height * 0.44), round(height * 0.84)),
+                            (round(height * 0.68), height),
+                        ]
+                        x_split = width / 2
+                        y_splits = [
+                            (y_ranges[index][1] + y_ranges[index + 1][0]) / 2
+                            for index in range(len(y_ranges) - 1)
+                        ]
+                        for row, (top, bottom) in enumerate(y_ranges):
+                            for column, (left, right) in enumerate(x_ranges):
+                                crop_path = Path(temporary_directory) / f"zone-b-{row}-{column}.jpg"
+                                prepared.crop((left, top, right, bottom)).save(crop_path, quality=90)
+                                result = model.predict(
+                                    source=str(crop_path), verbose=False, conf=0.25,
+                                    imgsz=_get_inference_size(),
+                                )[0]
+                                for box in result.boxes:
+                                    label = str(result.names[int(box.cls.item())]).lower()
+                                    confidence = float(box.conf.item())
+                                    x1, y1, x2, y2 = [int(value) for value in box.xyxy[0].tolist()]
+                                    center_x = (x1 + x2) / 2 + left
+                                    center_y = (y1 + y2) / 2 + top
+                                    if (center_x < x_split) != (column == 0):
+                                        continue
+                                    if row != sum(center_y >= split for split in y_splits):
+                                        continue
+                                    raw_detections.append((label, confidence,
+                                                           [x1 + left, y1 + top, x2 + left, y2 + top]))
+                    else:
+                        result = model.predict(source=str(prepared_path), verbose=False,
+                                               conf=0.25, imgsz=_get_inference_size())[0]
+                        raw_detections = [
+                            (str(result.names[int(box.cls.item())]).lower(),
+                             float(box.conf.item()),
+                             [int(value) for value in box.xyxy[0].tolist()])
+                            for box in result.boxes
+                        ]
             else:
                 result = model.predict(source=str(prepared_path), verbose=False, conf=0.25, imgsz=_get_inference_size())[0]
                 raw_detections = [
@@ -448,7 +518,9 @@ def detect_vehicles_with_yolo(image_path: Path, zone_code: str | None = None) ->
                 confidences.append(confidence)
                 detections.append({"label": label, "confidence": round(confidence, 4), "bbox": bbox})
 
-            detections = _suppress_duplicate_detections(detections)
+            detections = _suppress_duplicate_detections(
+                detections, include_partial_overlap=is_stitched
+            )
             confidences = [detection["confidence"] for detection in detections]
             detections = enrich_detections_with_colors(prepared_path, detections)
             detections = _restore_detection_coordinates(detections, scale_x, scale_y)

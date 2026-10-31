@@ -174,6 +174,7 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
     saved_calibration = load_calibration(db, analysis.id_imagen) if db is not None else None
     calibration = saved_calibration
     mapping_source = "manual_calibration" if saved_calibration else None
+    is_stitched_zone_b = False
     if analysis_mode == "yolo" and image and result["zone_code"]:
         try:
             with Image.open(resolve_stored_image_path(image.ruta_archivo)) as source:
@@ -182,6 +183,7 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
                     if pair else get_default_calibration(result["zone_code"], *source.size)
                 )
             if default_calibration:
+                is_stitched_zone_b = default_calibration["source"] == "zone_b_stitched_template"
                 calibration = (
                     merge_calibrations(default_calibration, saved_calibration)
                     if saved_calibration
@@ -197,6 +199,8 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
         if len(vehicles) == (analysis.vehiculos_detectados or 0):
             result["slot_mapping"] = assign_detections(calibration, result["detections"])
             result["slot_mapping"]["source"] = mapping_source
+            if is_stitched_zone_b:
+                _apply_zone_b_stitched(result, calibration)
     if pair:
         result["image_count"] = 2
         result["paired_image_id"] = pair["lower_image_id"]
@@ -204,6 +208,42 @@ def serialize_analysis(analysis: AnalisisImagen) -> dict:
         if analysis_mode == "yolo" and lower and lower.analisis and lower.analisis.estado == "completado_yolo":
             _apply_zone_b_pair(result, serialize_analysis(lower.analisis), lower, db)
     return result
+
+
+def _apply_zone_b_stitched(result: dict, calibration: dict) -> None:
+    mapping = result["slot_mapping"]
+    occupied_codes = {
+        item["code"] for item in mapping["spaces"] if item["status"] == "occupied"
+    }
+    selected = _detections_in_spaces(calibration, result["detections"])
+    detections = [item for code, item in selected.items() if code in occupied_codes]
+    result["detections"] = detections
+    result["vehiculos_detectados"] = len(detections)
+    result["autos_detectados"] = sum(item["label"] == "car" for item in detections)
+    result["motocicletas_detectadas"] = sum(item["label"] == "motorcycle" for item in detections)
+    result["total_vehiculos"] = len(detections)
+    result["espacios_ocupados"] = mapping["occupied_spaces"]
+    result["espacios_libres"] = mapping["free_spaces"]
+    capacity = get_zone_capacity("B") or 73
+    result["porcentaje_ocupacion"] = round(mapping["occupied_spaces"] / capacity * 100, 1)
+    result["precision_modelo"] = (
+        round(sum(item["confidence"] for item in detections) / len(detections) * 100, 1)
+        if detections else 0
+    )
+    result["confidence_mean"] = result["precision_modelo"]
+    result["vehicle_type_distribution"] = [
+        {"tipo": label, "cantidad": count}
+        for label, count in (("car", result["autos_detectados"]),
+                             ("motorcycle", result["motocicletas_detectadas"]))
+        if count
+    ]
+    colors = {}
+    for item in detections:
+        color = item.get("color") or "Otro"
+        colors[color] = colors.get(color, 0) + 1
+    result["color_distribution"] = [
+        {"color": color, "cantidad": count} for color, count in colors.items()
+    ]
 
 
 def _detections_in_spaces(calibration: dict, detections: list[dict]) -> dict[str, dict]:
@@ -320,10 +360,24 @@ def _build_analysis_values(
                 source_path or resolve_stored_image_path(image.ruta_archivo),
                 zone_metadata.get("zone_code") if zone_metadata else None,
             )
+            is_stitched_zone_b = False
+            if zone_metadata and zone_metadata.get("zone_code") == "B":
+                with Image.open(source_path or resolve_stored_image_path(image.ruta_archivo)) as source:
+                    calibration = get_default_calibration("B", *source.size)
+                if calibration and calibration["source"] == "zone_b_stitched_template":
+                    is_stitched_zone_b = True
+                    detection_result["detections"] = [
+                        item for item in detection_result["detections"]
+                        if item["label"] == "car"
+                    ]
+                    detection_result["slot_mapping"] = assign_detections(
+                        calibration, detection_result["detections"]
+                    )
+                    _apply_zone_b_stitched(detection_result, calibration)
             zone_capacity = get_zone_capacity(
                 zone_metadata.get("zone_code") if zone_metadata else None
             )
-            if zone_capacity:
+            if zone_capacity and not is_stitched_zone_b:
                 occupied_spaces = min(
                     detection_result["vehiculos_detectados"],
                     zone_capacity,

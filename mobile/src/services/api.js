@@ -46,6 +46,10 @@ export function login(correo, contrasena) {
   });
 }
 
+export function getAuthCapabilities() {
+  return request("/auth/capabilities");
+}
+
 export function registerUser({ nombres, apellidos, correo, contrasena }) {
   return request("/auth/register", {
     method: "POST",

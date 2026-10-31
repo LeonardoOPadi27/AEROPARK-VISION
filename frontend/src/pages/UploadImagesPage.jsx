@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import PageScaffold from "../components/PageScaffold";
 import DottedSurface from "../components/ui/DottedSurface";
-import { API_BASE_URL, getLatestImage, uploadImage, uploadZoneBPair } from "../services/api";
+import { API_BASE_URL, getLatestImage, uploadImage } from "../services/api";
 
 const parkingZones = [
   { code: "A", label: "Zona A" },
@@ -39,9 +39,7 @@ const getStoredImageUrl = (url) => {
 
 export default function UploadImagesPage({ onLogout }) {
   const inputRef = useRef(null);
-  const upperInputRef = useRef(null);
   const [imageFile, setImageFile] = useState(null);
-  const [upperImageFile, setUpperImageFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [status, setStatus] = useState("Esperando imagen");
@@ -53,10 +51,6 @@ export default function UploadImagesPage({ onLogout }) {
     if (!imageFile) return "";
     return URL.createObjectURL(imageFile);
   }, [imageFile]);
-  const upperPreviewUrl = useMemo(() => {
-    if (!upperImageFile) return "";
-    return URL.createObjectURL(upperImageFile);
-  }, [upperImageFile]);
 
   const activeImage = uploadResult ?? latestImage;
   const storedImageUrl = getStoredImageUrl(activeImage?.url);
@@ -66,9 +60,6 @@ export default function UploadImagesPage({ onLogout }) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
-  useEffect(() => () => {
-    if (upperPreviewUrl) URL.revokeObjectURL(upperPreviewUrl);
-  }, [upperPreviewUrl]);
 
   useEffect(() => {
     let isMounted = true;
@@ -109,18 +100,6 @@ export default function UploadImagesPage({ onLogout }) {
     handleFile(event.target.files?.[0]);
   };
 
-  const handleUpperInputChange = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setStatus("Selecciona un archivo de imagen válido");
-      return;
-    }
-    setUpperImageFile(file);
-    setUploadResult(null);
-    setStatus("Dos tomas listas para subir");
-  };
-
   const handleDrop = (event) => {
     event.preventDefault();
     setIsDragging(false);
@@ -128,23 +107,21 @@ export default function UploadImagesPage({ onLogout }) {
   };
 
   const handleUpload = async () => {
-    if (!imageFile || (selectedZoneCode === "B" && !upperImageFile)) {
-      setStatus(selectedZoneCode === "B" ? "Selecciona ambas tomas de Zona B" : "Selecciona una imagen antes de subir");
+    if (!imageFile) {
+      setStatus("Selecciona una imagen antes de subir");
       return;
     }
 
     if (uploadResult) return;
 
     setIsUploading(true);
-    setStatus(selectedZoneCode === "B" ? "Subiendo las dos tomas..." : "Subiendo imagen...");
+    setStatus("Subiendo imagen...");
 
     try {
-      const result = selectedZoneCode === "B"
-        ? await uploadZoneBPair(imageFile, upperImageFile)
-        : await uploadImage(imageFile, selectedZoneCode);
+      const result = await uploadImage(imageFile, selectedZoneCode);
       setUploadResult(result);
       setLatestImage(result);
-      setStatus(selectedZoneCode === "B" ? "Dos tomas cargadas; análisis en proceso" : "Última imagen cargada disponible");
+      setStatus("Imagen cargada; análisis en proceso");
       notifyAnalysisReady();
     } catch {
       setStatus("No se pudo subir la imagen");
@@ -155,12 +132,10 @@ export default function UploadImagesPage({ onLogout }) {
 
   const clearImage = () => {
     setImageFile(null);
-    setUpperImageFile(null);
     setUploadResult(null);
     setLatestImage(null);
     setStatus("Esperando imagen");
     if (inputRef.current) inputRef.current.value = "";
-    if (upperInputRef.current) upperInputRef.current.value = "";
   };
 
   return (
@@ -198,28 +173,28 @@ export default function UploadImagesPage({ onLogout }) {
               <UploadCloud className="h-7 w-7" />
             </div>
             <h2 className="text-2xl font-semibold tracking-[-.02em]">
-              {selectedZoneCode === "B" ? "Carga las dos tomas de Zona B" : "Arrastra una imagen aérea"}
+              Arrastra una imagen aérea
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-white/55">
-              {selectedZoneCode === "B"
-                ? "Selecciona la foto inferior y la superior del mismo recorrido."
-                : "Usa imágenes JPG, PNG o WEBP del estacionamiento. La imagen se previsualiza localmente antes de enviarse al backend."}
+              Formatos admitidos: JPG, PNG y WEBP. Selecciona la zona correspondiente antes de subir la imagen.
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               {parkingZones.map((zone) => (
                 <button
                   key={zone.code}
                   type="button"
+                  aria-pressed={selectedZoneCode === zone.code}
                   onClick={() => {
                     setSelectedZoneCode(zone.code);
                     setUploadResult(null);
                   }}
-                  className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                  className={`upload-glass-control liquid-segmented-control calibration-liquid-control inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${
                     selectedZoneCode === zone.code
-                      ? "border-white bg-white text-black"
-                      : "border-white/12 bg-white/[.04] text-white/65 hover:text-white"
+                      ? "outline outline-1 outline-current -outline-offset-4"
+                      : ""
                   }`}
                 >
+                  <CheckCircle2 aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 ${selectedZoneCode === zone.code ? "opacity-100" : "opacity-0"}`} />
                   {zone.label}
                 </button>
               ))}
@@ -227,37 +202,12 @@ export default function UploadImagesPage({ onLogout }) {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="upload-select-button liquid-action-button liquid-action-button-light mt-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold"
+              className="upload-glass-control liquid-segmented-control calibration-liquid-control mt-6 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold"
             >
               <ImagePlus className="h-5 w-5" />
-              {selectedZoneCode === "B" ? "Foto inferior" : "Seleccionar imagen"}
+              Seleccionar imagen
             </button>
-            {selectedZoneCode === "B" && (
-              <>
-                <input
-                  ref={upperInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleUpperInputChange}
-                />
-                <button
-                  type="button"
-                  onClick={() => upperInputRef.current?.click()}
-                  className="upload-select-button liquid-action-button liquid-action-button-light ml-2 mt-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold"
-                >
-                  <ImagePlus className="h-5 w-5" />
-                  Foto superior
-                </button>
-              </>
-            )}
           </div>
-          {selectedZoneCode === "B" && upperImageFile && (
-            <div className="mt-3 flex items-center gap-3 text-sm text-white/70">
-              <img src={upperPreviewUrl} alt="Vista previa de la toma superior" className="h-14 w-20 rounded-md object-cover" />
-              <span className="min-w-0 truncate">Superior: {upperImageFile.name}</span>
-            </div>
-          )}
         </section>
 
         <aside className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-5">
@@ -266,10 +216,12 @@ export default function UploadImagesPage({ onLogout }) {
               <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
                 Vista previa
               </p>
-              <h2 className="mt-1 text-xl font-semibold tracking-[-.02em]">Última imagen</h2>
+              <h2 className="mt-1 text-xl font-semibold tracking-[-.02em]">
+                {imageFile ? "Imagen seleccionada" : "Última imagen"}
+              </h2>
             </div>
             <span className="rounded-2xl border border-white/10 bg-white/[.03] px-3 py-1 text-xs font-medium text-white/60">
-              {activeImage ? "Subida" : "Local"}
+              {imageFile && !uploadResult ? "Sin subir" : activeImage ? "Guardada" : "Sin imagen"}
             </span>
           </div>
 
@@ -278,13 +230,13 @@ export default function UploadImagesPage({ onLogout }) {
               <img
                 src={previewUrl}
                 alt="Vista previa de imagen aérea"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
             ) : storedImageUrl ? (
               <img
                 src={storedImageUrl}
                 alt="Última imagen cargada"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
             ) : (
               <div className="text-center text-white/45">
@@ -319,12 +271,10 @@ export default function UploadImagesPage({ onLogout }) {
                 <p className="font-bold">{formatFileSize(imageFile?.size)}</p>
               </div>
             </div>
-            {activeImage && (
+            {activeImage && (!imageFile || uploadResult) && (
               <div className="rounded-2xl bg-white/[.03] p-3 text-sm">
                 <div className="mb-1 flex items-center justify-between gap-3">
-                  <p className="text-white/45">
-                    URL guardada · ID {activeImage.id_imagen}
-                  </p>
+                  <p className="text-white/45">Imagen ID {activeImage.id_imagen}</p>
                   <a
                     href={storedImageUrl}
                     target="_blank"
@@ -335,9 +285,6 @@ export default function UploadImagesPage({ onLogout }) {
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 </div>
-                <p className="truncate font-bold text-white/75">
-                  {activeImage.url}
-                </p>
               </div>
             )}
           </div>
@@ -346,20 +293,22 @@ export default function UploadImagesPage({ onLogout }) {
             <button
               type="button"
               onClick={handleUpload}
-              disabled={!imageFile || (selectedZoneCode === "B" && !upperImageFile) || isUploading || Boolean(uploadResult)}
-              className="liquid-action-button liquid-action-button-light inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+              disabled={!imageFile || isUploading || Boolean(uploadResult)}
+              className="upload-gleam-button inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
             >
-              <UploadCloud className="h-4 w-4" />
-              {isUploading
-                ? "Subiendo..."
-                : uploadResult
-                  ? "Carga completada"
-                  : selectedZoneCode === "B" ? "Subir dos tomas" : "Subir imagen"}
+              <UploadCloud aria-hidden="true" className="relative z-10 h-4 w-4" />
+              <span className="upload-gleam-label z-10">
+                {isUploading
+                  ? "Subiendo..."
+                  : uploadResult
+                    ? "Carga completada"
+                    : "Subir imagen"}
+              </span>
             </button>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="upload-select-button liquid-action-button liquid-action-button-light inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+              className="upload-glass-control liquid-segmented-control calibration-liquid-control inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold"
             >
               <RefreshCw className="h-4 w-4" />
               Cambiar
@@ -369,8 +318,8 @@ export default function UploadImagesPage({ onLogout }) {
           <button
             type="button"
             onClick={clearImage}
-            disabled={!imageFile && !upperImageFile && !activeImage}
-            className="upload-select-button liquid-action-button liquid-action-button-light mt-3 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+            disabled={!imageFile && !activeImage}
+            className="upload-glass-control liquid-segmented-control calibration-liquid-control mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Trash2 className="h-4 w-4" />
             Quitar imagen

@@ -4,6 +4,7 @@ import GlassCard from "../components/GlassCard";
 import SectionHeader from "../components/SectionHeader";
 import ZonePill from "../components/ZonePill";
 import ParkingPhysicalMap from "../components/ParkingPhysicalMap";
+import ZoneImage from "../components/ZoneImage";
 import SpaceActionSheet from "../components/SpaceActionSheet";
 import { colors, radii, spacing } from "../theme";
 import { getZoneSummary } from "../utils/parking";
@@ -32,7 +33,6 @@ export default function SpacesScreen({
         <SectionHeader
           eyebrow="Zonas Tecsup"
           title="Espacios"
-          description="Cambia entre las zonas habilitadas y consulta los espacios disponibles segun su posicion fisica."
         />
 
         <View style={styles.zoneTabs}>
@@ -47,6 +47,7 @@ export default function SpacesScreen({
         </View>
 
         <GlassCard>
+          <ZoneImage zoneId={activeZone.id} height={84} style={styles.zoneImage} />
           <View style={styles.summaryRow}>
             <View style={styles.summaryCopy}>
               <Text style={styles.zoneHeading}>{activeZone.title}</Text>
@@ -54,20 +55,16 @@ export default function SpacesScreen({
             </View>
             <View style={styles.summaryBadge}>
               <Text style={styles.summaryBadgeValue}>{zoneSummary.free ?? "--"}</Text>
-              <Text style={styles.summaryBadgeLabel}>libres est.</Text>
+              <Text style={styles.summaryBadgeLabel}>
+                {activeZone.occupancy_is_estimate ? "libres est." : "libres"}
+              </Text>
             </View>
           </View>
 
-          <View style={styles.metricsRow}>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Libres</Text>
-              <Text style={styles.metricValue}>{zoneSummary.free ?? "--"}</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Ocupados</Text>
-              <Text style={styles.metricValue}>{zoneSummary.occupied ?? "--"}</Text>
-            </View>
-          </View>
+          <Text style={styles.occupancyText}>
+            {zoneSummary.occupied ?? "--"} ocupados
+            {activeZone.unknown_spaces ? ` · ${activeZone.unknown_spaces} sin confirmar` : ""}
+          </Text>
         </GlassCard>
 
         <ParkingPhysicalMap
@@ -113,6 +110,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
+  zoneImage: {
+    marginBottom: 16,
+  },
   summaryRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   },
   zoneHeading: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "900",
   },
   zoneMeta: {
@@ -158,31 +158,9 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  metricsRow: {
-    flexDirection: "row",
-    gap: 12,
+  occupancyText: {
+    color: colors.textMuted,
+    fontSize: 13,
     marginTop: 16,
-  },
-  metricCard: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: radii.cardInner,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  metricLabel: {
-    color: colors.textSoft,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  metricValue: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: "900",
-    marginTop: 8,
   },
 });

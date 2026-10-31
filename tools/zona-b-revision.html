@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zona B | Revisión de numeración</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #090b0d; color: #f4f5f6; }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      button { font: inherit; cursor: pointer; }
+      .shell { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 100vh; }
+      aside { position: sticky; top: 0; height: 100vh; overflow: auto; padding: 22px; border-right: 1px solid #34383c; background: #111518; }
+      .eyebrow { color: #a3acb3; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+      h1 { margin: 8px 0 6px; font-size: 23px; }
+      p { color: #aeb5bb; font-size: 13px; line-height: 1.45; }
+      .count { margin: 20px 0 10px; font-weight: 750; }
+      .codes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+      .code { min-height: 36px; border: 1px solid #68603d; border-radius: 6px; color: #ffdf6e; background: #302b19; font-size: 12px; font-weight: 750; }
+      .code.placed { border-color: #32806a; color: #9de3c7; background: #17372f; }
+      .code.selected { outline: 2px solid white; outline-offset: 1px; }
+      .actions { display: flex; gap: 8px; margin-top: 18px; }
+      .actions button, .tab { border: 1px solid #575f64; border-radius: 6px; background: #21282c; color: #f4f5f6; padding: 9px 11px; }
+      .actions button:disabled { opacity: .4; cursor: not-allowed; }
+      .legend { margin-top: 20px; border-top: 1px solid #353b3f; padding-top: 12px; }
+      .legend span { display: block; margin: 7px 0; font-size: 12px; color: #c2c9ce; }
+      .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; }
+      main { min-width: 0; padding: 20px; }
+      .topbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 15px; }
+      .tabs { display: flex; gap: 7px; }
+      .tab.active { background: #eef2f4; color: #101417; }
+      .zoom { display: flex; align-items: center; gap: 7px; }
+      .zoom button { width: 35px; height: 35px; border: 1px solid #575f64; border-radius: 6px; color: white; background: #21282c; }
+      .frame { overflow: auto; height: calc(100vh - 92px); border: 1px solid #3a4145; border-radius: 7px; background: #050505; }
+      .photo { position: relative; width: 100%; min-width: 740px; transform-origin: top left; }
+      .photo img { display: block; width: 100%; height: auto; }
+      .overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+      .slot { fill: #04bb88; fill-opacity: .15; stroke: #55e4bc; stroke-width: 5; vector-effect: non-scaling-stroke; }
+      .slot-label { fill: white; stroke: #07110e; stroke-width: 7px; paint-order: stroke; font: 800 38px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+      .pin { fill: #f6cb4e; stroke: #31270b; stroke-width: 7px; }
+      .pin-label { fill: #16130c; font: 800 34px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+      .outside { fill: #f25e6d; fill-opacity: .08; stroke: #f25e6d; stroke-width: 6px; }
+      .outside-label { fill: #fff; stroke: #871923; stroke-width: 8px; paint-order: stroke; font: 800 36px system-ui, sans-serif; }
+      .notice { margin-top: 10px; font-size: 12px; }
+      @media (max-width: 800px) {
+        .shell { display: block; }
+        aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid #34383c; }
+        .frame { height: 70vh; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <div class="eyebrow">AeroPark Vision / revisión</div>
+        <h1>Numeración Zona B</h1>
+        <p>Los contornos verdes provienen de la calibración existente. Los códigos amarillos aún no tienen ubicación confirmada. Esta revisión no modifica el análisis.</p>
+        <div class="count" id="count">Cargando mapa...</div>
+        <div class="codes" id="codes"></div>
+        <div class="actions">
+          <button id="remove" type="button" disabled>Quitar marca</button>
+          <button id="download" type="button">Exportar revisión</button>
+        </div>
+        <p id="hint">Selecciona un código pendiente y pulsa su espacio en la foto superior. Puedes mover una marca repitiendo el clic.</p>
+        <div class="legend">
+          <span><i class="dot" style="background:#55e4bc"></i>56 polígonos existentes</span>
+          <span><i class="dot" style="background:#f6cb4e"></i>Ubicación propuesta para revisar</span>
+          <span><i class="dot" style="background:#f25e6d"></i>Vehículo fuera de Zona B</span>
+        </div>
+      </aside>
+      <main>
+        <div class="topbar">
+          <div class="tabs">
+            <button class="tab active" data-view="lower" type="button">Foto inferior · 56 ubicados</button>
+            <button class="tab" data-view="upper" type="button">Foto superior · completar</button>
+          </div>
+          <div class="zoom">
+            <button id="zoomOut" type="button" aria-label="Alejar" title="Alejar">−</button>
+            <strong id="zoomValue">100%</strong>
+            <button id="zoomIn" type="button" aria-label="Acercar" title="Acercar">+</button>
+          </div>
+        </div>
+        <div class="frame" id="frame">
+          <div class="photo" id="photo">
+            <img id="image" alt="Fotografía aérea de Zona B" />
+            <svg class="overlay" id="overlay" viewBox="0 0 5280 3956" preserveAspectRatio="none" aria-label="Espacios numerados de Zona B"></svg>
+          </div>
+        </div>
+        <p class="notice" id="source"></p>
+      </main>
+    </div>
+    <script>
+      const imagePaths = {
+        lower: "../datasets/raw/zona_b/DJI_20260312135933_0012_D.JPG",
+        upper: "../datasets/raw/zona_b/DJI_20260312135940_0014_D.JPG",
+      };
+      const storageKey = "aeropark:zona-b-review:v1";
+      const svgNs = "http://www.w3.org/2000/svg";
+      const $ = (id) => document.getElementById(id);
+      let view = "lower";
+      let zoom = 1;
+      let selected = null;
+      let mapped = [];
+      let pins = JSON.parse(localStorage.getItem(storageKey) || "{}");
+
+      function svg(tag, attributes, label) {
+        const element = document.createElementNS(svgNs, tag);
+        for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
+        if (label) element.textContent = label;
+        $("overlay").appendChild(element);
+        return element;
+      }
+
+      function displayCode(number) { return `B-${String(number).padStart(3, "0")}`; }
+      function sourceToCode(number) {
+        return displayCode(number <= 25 ? number + 13 : number <= 47 ? number + 21 : number - 46);
+      }
+      function center(polygon) {
+        return [polygon.reduce((sum, p) => sum + p[0], 0) / 4,
+          polygon.reduce((sum, p) => sum + p[1], 0) / 4];
+      }
+      function missingCodes() {
+        const existing = new Set(mapped.map((space) => space.code));
+        return Array.from({ length: 73 }, (_, index) => displayCode(index + 1)).filter((code) => !existing.has(code));
+      }
+      function savePins() { localStorage.setItem(storageKey, JSON.stringify(pins)); }
+      function renderCodes() {
+        const missing = missingCodes();
+        $("count").textContent = `${mapped.length} ubicados · ${missing.filter((code) => pins[code]).length}/${missing.length} pendientes marcados`;
+        $("codes").replaceChildren();
+        for (const code of missing) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `code${pins[code] ? " placed" : ""}${selected === code ? " selected" : ""}`;
+          button.textContent = code;
+          button.title = pins[code] ? `${code}: marca provisional` : `${code}: falta ubicar`;
+          button.addEventListener("click", () => { selected = code; setView("upper"); renderCodes(); });
+          $("codes").appendChild(button);
+        }
+        $("remove").disabled = !selected || !pins[selected];
+      }
+      function renderOverlay() {
+        $("overlay").replaceChildren();
+        if (view === "lower") {
+          for (const space of mapped) {
+            svg("polygon", { points: space.polygon.map((p) => p.join(",")).join(" "), class: "slot" });
+            const [x, y] = center(space.polygon);
+            svg("text", { x, y: y + 12, class: "slot-label" }, space.code);
+          }
+          svg("rect", { x: 830, y: 275, width: 215, height: 290, rx: 20, class: "outside" });
+          svg("text", { x: 850, y: 255, class: "outside-label" }, "Fuera de Zona B");
+        } else {
+          for (const [code, point] of Object.entries(pins)) {
+            svg("circle", { cx: point[0], cy: point[1], r: 62, class: "pin" });
+            svg("text", { x: point[0], y: point[1] + 11, class: "pin-label" }, code);
+          }
+        }
+      }
+      function setView(next) {
+        view = next;
+        $("image").src = imagePaths[view];
+        $("source").textContent = view === "lower"
+          ? "Toma DJI_20260312135933_0012_D.JPG · polígonos existentes; el auto de la calle queda fuera."
+          : "Toma DJI_20260312135940_0014_D.JPG · marcas amarillas provisionales, pendientes de validar.";
+        document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
+        $("frame").scrollTo(0, 0);
+        renderOverlay();
+      }
+      function setZoom(next) {
+        zoom = Math.min(3, Math.max(1, next));
+        $("photo").style.width = `${zoom * 100}%`;
+        $("zoomValue").textContent = `${Math.round(zoom * 100)}%`;
+      }
+      document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => setView(tab.dataset.view)));
+      $("zoomIn").addEventListener("click", () => setZoom(zoom + .25));
+      $("zoomOut").addEventListener("click", () => setZoom(zoom - .25));
+      $("overlay").addEventListener("click", (event) => {
+        if (view !== "upper" || !selected) return;
+        const point = $("overlay").createSVGPoint();
+        point.x = event.clientX;
+        point.y = event.clientY;
+        const imagePoint = point.matrixTransform($("overlay").getScreenCTM().inverse());
+        pins[selected] = [Math.round(imagePoint.x), Math.round(imagePoint.y)];
+        savePins();
+        renderCodes();
+        renderOverlay();
+      });
+      $("remove").addEventListener("click", () => {
+        if (!selected) return;
+        delete pins[selected];
+        savePins();
+        renderCodes();
+        renderOverlay();
+      });
+      $("download").addEventListener("click", () => {
+        const result = {
+          zone_code: "B",
+          status: "provisional_review_not_calibration",
+          lower_image: imagePaths.lower.split("/").pop(),
+          upper_image: imagePaths.upper.split("/").pop(),
+          existing_spaces: mapped.map((space) => space.code),
+          pending_codes: missingCodes(),
+          proposed_upper_centers: pins,
+        };
+        const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "zona-b-revision.json";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+      fetch("../ai-model/config/parking_spaces.json")
+        .then((response) => { if (!response.ok) throw new Error("No se pudo cargar el mapa."); return response.json(); })
+        .then((data) => {
+          mapped = data.spaces.map((space) => ({ code: sourceToCode(Number(space.code.slice(2))), polygon: space.polygon }));
+          renderCodes();
+          setView("lower");
+        })
+        .catch((error) => { $("count").textContent = error.message; });
+    </script>
+  </body>
+</html>

@@ -20,19 +20,18 @@ export default function ProfileScreen({
       <SectionHeader
         eyebrow="Cuenta"
         title="Perfil"
-        description="Controla tu sesion, refresca la disponibilidad y revisa las ultimas actualizaciones sin salir del flujo principal."
       />
 
       <GlassCard>
-        <Text style={styles.name}>{user?.nombres ?? "Usuario Tecsup"}</Text>
+        <Text style={styles.name}>{user?.nombres ?? "Estudiante"}</Text>
         <Text style={styles.meta}>
           {user?.correo ?? "Sin correo"}
         </Text>
         <Text style={styles.endpoint}>
           {Platform.OS === "web"
-            ? "Los recordatorios locales funcionan en la app para telefono."
+            ? "Los recordatorios están disponibles en la app para teléfono."
             : remindersEnabled
-            ? "Recordatorios disponibles si autorizas las notificaciones del dispositivo."
+            ? "Los recordatorios requieren permiso de notificaciones."
             : "Recordatorios desactivados por el administrador."}
         </Text>
         <AppButton
@@ -49,8 +48,10 @@ export default function ProfileScreen({
       </GlassCard>
 
       <GlassCard>
-        <Text style={styles.historyTitle}>Ultimas revisiones</Text>
-        {historyItems?.slice(0, 3).map((item) => (
+        <Text style={styles.historyTitle}>Últimas revisiones</Text>
+        {!historyItems?.length ? (
+          <Text style={styles.historyMeta}>Aún no hay revisiones registradas.</Text>
+        ) : historyItems.slice(0, 3).map((item) => (
           <View key={item.id} style={styles.historyItem}>
             <Text style={styles.historyId}>{item.id}</Text>
             <Text style={styles.historyZone}>{item.zone}</Text>

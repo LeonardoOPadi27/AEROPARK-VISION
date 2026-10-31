@@ -13,13 +13,13 @@ import GlassCard from "../components/GlassCard";
 import SectionHeader from "../components/SectionHeader";
 import { colors, radii, spacing } from "../theme";
 
-export default function LoginScreen({ onSubmit, onRegister, submitting, error }) {
+export default function LoginScreen({ onSubmit, onRegister, registrationEnabled, submitting, error }) {
   const [mode, setMode] = useState("login");
   const [nombres, setNombres] = useState("");
   const [apellidos, setApellidos] = useState("");
   const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");
-  const isRegisterMode = mode === "register";
+  const isRegisterMode = registrationEnabled && mode === "register";
 
   const handleSubmit = () => {
     if (isRegisterMode) {
@@ -42,16 +42,16 @@ export default function LoginScreen({ onSubmit, onRegister, submitting, error })
       >
       <SectionHeader
         eyebrow="AeroPark Vision"
-        title={isRegisterMode ? "Crear cuenta" : "Acceso mobile"}
+        title={isRegisterMode ? "Crear cuenta" : "Acceso de estudiantes"}
         description={
           isRegisterMode
-            ? "Registra tu cuenta para marcar el espacio que ocupas y recibir recordatorios."
-            : "Inicia sesión para reportar ocupación y recibir recordatorios cuando tu tiempo estimado termine."
+            ? "Registra tu cuenta para consultar zonas y marcar el espacio que ocupas."
+            : "Inicia sesión para consultar disponibilidad y gestionar tu espacio."
         }
       />
 
       <GlassCard style={styles.formCard}>
-        <View style={styles.switchRow}>
+        {registrationEnabled ? <View style={styles.switchRow}>
           <AppButton
             label="Ingresar"
             onPress={() => setMode("login")}
@@ -64,7 +64,7 @@ export default function LoginScreen({ onSubmit, onRegister, submitting, error })
             variant={isRegisterMode ? "primary" : "secondary"}
             style={styles.switchButton}
           />
-        </View>
+        </View> : null}
 
         {isRegisterMode ? (
           <>

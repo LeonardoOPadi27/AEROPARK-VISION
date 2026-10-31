@@ -2,6 +2,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AppButton from "../components/AppButton";
 import GlassCard from "../components/GlassCard";
 import SectionHeader from "../components/SectionHeader";
+import ZoneImage from "../components/ZoneImage";
 import { colors, radii, spacing } from "../theme";
 import { getGlobalSummary, getZoneSummary } from "../utils/parking";
 
@@ -21,22 +22,24 @@ export default function HomeScreen({ zones, setActiveZoneId, setActiveTab }) {
       <SectionHeader
         eyebrow="Tecsup"
         title="Espacios disponibles"
-        description="Consulta las zonas A y B del estacionamiento y revisa rapidamente donde aun quedan espacios libres."
       />
 
       <GlassCard>
-        <Text style={styles.heroLabel}>Mejor opcion ahora</Text>
+        {bestZone ? <ZoneImage zoneId={bestZone.id} height={122} style={styles.heroImage} /> : null}
+        <Text style={styles.heroLabel}>Más espacios libres</Text>
         <Text style={styles.heroValue} numberOfLines={2}>
           {bestZone?.title ?? "Sin zonas"}
         </Text>
         <Text style={styles.heroMeta}>
           {bestZone
             ? `${getZoneSummary(bestZone).free} libres disponibles en esta zona.`
-            : `${summary.occupied} ocupados de ${summary.total} espacios totales.`}
+            : summary.coverageComplete
+              ? `${summary.occupied} ocupados de ${summary.total} espacios.`
+              : "Disponibilidad aún no confirmada."}
         </Text>
         {bestZone ? (
           <AppButton
-            label="Ir directo a esta zona"
+            label="Ver espacios"
             onPress={() => {
               setActiveZoneId(bestZone.id);
               setActiveTab("spaces");
@@ -52,6 +55,7 @@ export default function HomeScreen({ zones, setActiveZoneId, setActiveTab }) {
 
           return (
             <GlassCard key={zone.id}>
+              <ZoneImage zoneId={zone.id} height={108} style={styles.zoneImage} />
               <View style={styles.zoneRow}>
                 <View style={styles.zoneCopy}>
                   <Text style={styles.zoneTitle}>{zone.title}</Text>
@@ -59,14 +63,13 @@ export default function HomeScreen({ zones, setActiveZoneId, setActiveTab }) {
                     {zone.subtitle} · actualizado {zone.updatedAt}
                   </Text>
                 </View>
-                <Text style={styles.zoneFree}>{zoneSummary.free ?? "--"}</Text>
+                <View style={styles.zoneCount}>
+                  <Text style={styles.zoneFree}>{zoneSummary.free ?? "--"}</Text>
+                  <Text style={styles.zoneCountLabel}>libres</Text>
+                </View>
               </View>
 
               <View style={styles.metricsRow}>
-                <View style={styles.metricBlock}>
-                  <Text style={styles.metricLabel}>Libres</Text>
-                  <Text style={styles.metricValue}>{zoneSummary.free ?? "--"}</Text>
-                </View>
                 <View style={styles.metricBlock}>
                   <Text style={styles.metricLabel}>Ocupados</Text>
                   <Text style={styles.metricValue}>{zoneSummary.occupied ?? "--"}</Text>
@@ -105,6 +108,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1.2,
     textTransform: "uppercase",
+  },
+  heroImage: {
+    marginBottom: 16,
+  },
+  zoneImage: {
+    marginBottom: 16,
   },
   heroValue: {
     color: colors.text,
@@ -148,6 +157,13 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 34,
     fontWeight: "900",
+  },
+  zoneCount: {
+    alignItems: "flex-end",
+  },
+  zoneCountLabel: {
+    color: colors.textSoft,
+    fontSize: 12,
   },
   metricsRow: {
     flexDirection: "row",

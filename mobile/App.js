@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   SafeAreaView,
   StatusBar,
@@ -17,6 +18,7 @@ import LoginScreen from "./src/screens/LoginScreen";
 import BottomNav from "./src/components/BottomNav";
 import AppButton from "./src/components/AppButton";
 import {
+  getAuthCapabilities,
   getAnalysisList,
   getMe,
   getParkingOverview,
@@ -39,13 +41,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("home");
   const [zones, setZones] = useState([]);
   const [historyItems, setHistoryItems] = useState([]);
-  const [activeZoneId, setActiveZoneId] = useState("A");
+  const [activeZoneId, setActiveZoneId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [submittingLogin, setSubmittingLogin] = useState(false);
   const [sessionUser, setSessionUser] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const [registrationEnabled, setRegistrationEnabled] = useState(false);
   const [mobileSettings, setMobileSettings] = useState({});
   const [actionError, setActionError] = useState(null);
 
@@ -64,6 +67,32 @@ export default function App() {
           entry.space.reported_user_id === sessionUser?.id_usuario,
       ) ?? null;
 
+  const endExpiredSession = useCallback(async () => {
+    await clearSession();
+    setAuthToken(null);
+    setSessionUser(null);
+    setZones([]);
+    setActiveZoneId(null);
+    setActiveTab("home");
+    setActionError(null);
+    setError(null);
+    setAuthError("Tu sesión venció. Inicia sesión de nuevo para continuar.");
+  }, []);
+
+  useEffect(() => {
+    if (!sessionUser) return undefined;
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        getMe().catch((sessionError) => {
+          if (sessionError.status === 401) endExpiredSession();
+        });
+      }
+    });
+
+    return () => subscription.remove();
+  }, [sessionUser, endExpiredSession]);
+
   const loadOverview = async () => {
     try {
       setLoading(true);
@@ -78,16 +107,19 @@ export default function App() {
       setActiveZoneId((currentZoneId) =>
         enabledZones.some((zone) => zone.id === currentZoneId)
           ? currentZoneId
-          : (enabledZones[0]?.id ?? "A"),
+          : enabledZones.some((zone) => zone.id === overview.mobile_settings?.default_zone)
+            ? overview.mobile_settings.default_zone
+            : (enabledZones[0]?.id ?? null),
       );
       setHistoryItems(buildMobileHistoryItems(analysisItems));
     } catch (loadError) {
       if (loadError.status === 401) {
-        await clearSession();
-        setAuthToken(null);
-        setSessionUser(null);
+        await endExpiredSession();
+        return;
       }
-      setError(loadError.message);
+      setError(loadError.status
+        ? loadError.message
+        : "Comprueba tu conexión y vuelve a intentarlo.");
     } finally {
       setLoading(false);
     }
@@ -95,7 +127,11 @@ export default function App() {
 
   useEffect(() => {
     const bootstrap = async () => {
-      const session = await loadSession();
+      const [session, capabilities] = await Promise.all([
+        loadSession(),
+        getAuthCapabilities().catch(() => null),
+      ]);
+      setRegistrationEnabled(Boolean(capabilities?.public_registration_enabled));
       if (!session.token) {
         setAuthReady(true);
         setLoading(false);
@@ -109,8 +145,7 @@ export default function App() {
         await loadOverview();
       } catch (bootstrapError) {
         if ([401, 403].includes(bootstrapError.status)) {
-          await clearSession();
-          setAuthToken(null);
+          await endExpiredSession();
         } else {
           setSessionUser(session.user);
           setError(bootstrapError.message);
@@ -161,7 +196,11 @@ export default function App() {
     setActionError(null);
     let result;
     try { result = await occupySpace(spaceCode, durationHours); }
-    catch (error) { setActionError(error.message); throw error; }
+    catch (error) {
+      if (error.status === 401) await endExpiredSession();
+      else setActionError(error.message);
+      throw error;
+    }
     await loadOverview();
     if (mobileSettings.reminders_enabled && Platform.OS !== "web") {
       try {
@@ -176,7 +215,11 @@ export default function App() {
   const handleReleaseSpace = async (spaceCode) => {
     setActionError(null);
     try { await releaseSpace(spaceCode); }
-    catch (error) { setActionError(error.message); throw error; }
+    catch (error) {
+      if (error.status === 401) await endExpiredSession();
+      else setActionError(error.message);
+      throw error;
+    }
     await loadOverview();
     try { await cancelParkingReminder(spaceCode); } catch { /* The release already succeeded. */ }
   };
@@ -185,7 +228,11 @@ export default function App() {
     setActionError(null);
     let result;
     try { result = await confirmSpace(spaceCode); }
-    catch (error) { setActionError(error.message); return; }
+    catch (error) {
+      if (error.status === 401) await endExpiredSession();
+      else setActionError(error.message);
+      return;
+    }
     await loadOverview();
     if (mobileSettings.reminders_enabled && Platform.OS !== "web") {
       try { await scheduleParkingReminder(spaceCode, result.confirmation_due_at); }
@@ -198,8 +245,10 @@ export default function App() {
     setAuthToken(null);
     setSessionUser(null);
     setZones([]);
+    setActiveZoneId(null);
     setAuthReady(true);
     setActiveTab("home");
+    setAuthError(null);
   };
 
   const sharedScreenProps = {
@@ -220,7 +269,7 @@ export default function App() {
         <ExpoStatusBar style="light" />
         <View style={styles.centerState}>
           <ActivityIndicator color={colors.text} size="large" />
-          <Text style={styles.stateText}>Cargando disponibilidad real...</Text>
+          <Text style={styles.stateText}>Cargando disponibilidad...</Text>
         </View>
       </SafeAreaView>
     );
@@ -233,6 +282,7 @@ export default function App() {
         <LoginScreen
           onSubmit={handleLogin}
           onRegister={handleRegister}
+          registrationEnabled={registrationEnabled}
           submitting={submittingLogin}
           error={authError}
         />
@@ -240,14 +290,15 @@ export default function App() {
     );
   }
 
-  if (error && !zones.length) {
+  if (!zones.length) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <ExpoStatusBar style="light" />
         <View style={styles.centerState}>
-          <Text style={styles.stateTitle}>No se pudo conectar la app mobile</Text>
-          <Text style={styles.stateText}>No se pudo obtener la disponibilidad.</Text>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.stateTitle}>
+            {error ? "No se pudo cargar la disponibilidad" : "No hay zonas disponibles"}
+          </Text>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <AppButton label="Reintentar" onPress={loadOverview} />
         </View>
       </SafeAreaView>

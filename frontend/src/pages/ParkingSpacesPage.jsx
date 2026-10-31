@@ -58,7 +58,7 @@ const getSpaceStatusLabel = (space) => {
   }
 
   if (space.status === "unknown") {
-    return "Ubicacion no confirmada";
+    return "Ubicación no confirmada";
   }
 
   return "Libre";
@@ -257,29 +257,38 @@ const getPhysicalSlot = (zoneId, index, total) => {
   return makeFallbackSlot(index, total);
 };
 
+let parkingOverviewCache = null;
+
 export default function ParkingSpacesPage({ onLogout }) {
-  const [data, setData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedData = parkingOverviewCache?.token === localStorage.getItem("token")
+    ? parkingOverviewCache.data
+    : null;
+  const [data, setData] = useState(cachedData);
+  const [isLoading, setIsLoading] = useState(!cachedData);
   const [error, setError] = useState("");
   const [expandedZoneId, setExpandedZoneId] = useState(null);
   const [calibrationZoneId, setCalibrationZoneId] = useState(null);
   const physicalMapScrollRef = useRef(null);
+  const hasDataRef = useRef(Boolean(cachedData));
 
   useEffect(() => {
     let isMounted = true;
 
     const loadSpaces = async () => {
-      setIsLoading(true);
-      setError("");
-
       try {
         const response = await getMobileParkingOverview();
 
         if (isMounted) {
           setData(response);
+          setError("");
+          hasDataRef.current = true;
+          parkingOverviewCache = {
+            token: localStorage.getItem("token"),
+            data: response,
+          };
         }
       } catch {
-        if (isMounted) {
+        if (isMounted && !hasDataRef.current) {
           setError("No se pudieron cargar los espacios libres.");
         }
       } finally {
@@ -355,7 +364,7 @@ export default function ParkingSpacesPage({ onLogout }) {
               <div className="flex shrink-0 items-start justify-between gap-4 border-b border-white/10 p-5">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
-                    Vista fisica ampliada
+                    Vista física ampliada
                   </p>
                   <h2 className="mt-1 text-2xl font-black text-white">
                     Zona {expandedZone.id}
@@ -375,9 +384,9 @@ export default function ParkingSpacesPage({ onLogout }) {
               </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5">
                 <div className="physical-map-liquid-legend mb-4 flex shrink-0 flex-wrap items-center justify-center gap-x-7 gap-y-3 px-4 py-4 text-xs font-bold text-white/62">
-                  <StatusPill label="Ubicacion no confirmada" className="border-white/30 bg-white/15" />
-                  <StatusPill label="Libre segun foto" className="border-emerald-200/70 bg-emerald-400/72" />
-                  <StatusPill label="Ocupado segun foto" className="border-red-300/70 bg-red-500/72" />
+                  <StatusPill label="Ubicación no confirmada" className="border-white/30 bg-white/15" />
+                  <StatusPill label="Libre según foto" className="border-emerald-200/70 bg-emerald-400/72" />
+                  <StatusPill label="Ocupado según foto" className="border-red-300/70 bg-red-500/72" />
                   <StatusPill label="Marcado desde app" className="border-sky-300/75 bg-sky-400/20" />
                   <StatusPill label="Pendiente de confirmar" className="border-amber-300/75 bg-amber-400/20" />
                 </div>
@@ -417,7 +426,7 @@ export default function ParkingSpacesPage({ onLogout }) {
             icon={ParkingCircle}
             label={hasLocatedSpaces ? "Libres ubicados" : "Libres estimados"}
             value={(hasLocatedSpaces ? data.located_free_spaces : data?.free_spaces) ?? "--"}
-            detail={data?.coverage_complete ? "Ultimas imagenes de A y B" : `${data?.unknown_spaces ?? 119} sin confirmar`}
+            detail={!data ? "Sin datos de revisión" : data.coverage_complete ? "Según las últimas imágenes de A y B" : `${data.unknown_spaces} sin confirmar`}
           />
           <SummaryCard
             icon={Car}
@@ -429,13 +438,13 @@ export default function ParkingSpacesPage({ onLogout }) {
             icon={Smartphone}
             label="Marcados en app"
             value={manualMarkedCount}
-            detail="Ocupados manualmente por usuarios"
+            detail="Ocupados manualmente por estudiantes"
           />
           <SummaryCard
             icon={Clock3}
-            label="Ultima revision"
+            label="Última revisión"
             value={formatDateTime(data?.updated_at)}
-            detail={`${data?.analysis_mode ?? "sin modo"} · ${data?.source ?? "sin fuente"}`}
+            detail="Fechas detalladas por zona"
             compact
           />
         </div>
@@ -451,7 +460,7 @@ export default function ParkingSpacesPage({ onLogout }) {
           </div>
         ) : zones.length === 0 ? (
           <div className="rounded-[26px] border border-white/10 bg-[#0a0a0a] px-4 py-12 text-center text-white/55">
-            Aun no hay zonas calculadas.
+            Aún no hay zonas analizadas.
           </div>
         ) : (
           <>
@@ -466,9 +475,9 @@ export default function ParkingSpacesPage({ onLogout }) {
                   </h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-white/60">
-                  <LegendDot className="border-white/25 bg-white/15" label="Ubicacion no confirmada" />
-                  <LegendDot className="border-emerald-200/70 bg-emerald-400/72" label="Libre segun foto" />
-                  <LegendDot className="border-red-300/70 bg-red-500/72" label="Ocupado segun foto" />
+                  <LegendDot className="border-white/25 bg-white/15" label="Ubicación no confirmada" />
+                  <LegendDot className="border-emerald-200/70 bg-emerald-400/72" label="Libre según foto" />
+                  <LegendDot className="border-red-300/70 bg-red-500/72" label="Ocupado según foto" />
                   <LegendDot className="border-sky-300/40 bg-sky-400/18" label="Marcado desde app" />
                   <LegendDot className="border-amber-300/40 bg-amber-400/18" label="Pendiente de confirmar" />
                 </div>
@@ -502,7 +511,7 @@ export default function ParkingSpacesPage({ onLogout }) {
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs text-white/60">
                           {zone.calibrated_spaces ?? 0}/{zone.total_spaces} ubicados · {zone.unknown_spaces ?? zone.total_spaces} sin confirmar
-                          {zone.mapping_source === "zone_template" ? " · plantilla automatica" : ""}
+                          {zone.mapping_source === "zone_template" ? " · plantilla automática" : ""}
                           {zone.mapping_source === "zone_template_adjusted" ? " · plantilla ajustada" : ""}
                         </p>
                         <button type="button" onClick={() => setCalibrationZoneId(zone.id)} className="liquid-segmented-control calibration-liquid-control flex items-center gap-2 rounded-full px-3 py-2 text-xs"><ScanLine size={15} />Ajustar plano {zone.id}</button>
@@ -519,10 +528,10 @@ export default function ParkingSpacesPage({ onLogout }) {
                     </div>
 
                     <div className="mt-4 grid grid-cols-3 gap-2.5">
-                      <ZoneMetric label={zone.occupancy_is_estimate ? "Libres estimados" : "Libres segun foto"} value={zone.free_spaces ?? "--"} />
+                      <ZoneMetric label={zone.occupancy_is_estimate ? "Libres estimados" : "Libres según foto"} value={zone.free_spaces ?? "--"} />
                       <ZoneMetric label={zone.occupancy_is_estimate ? "Ocupados estimados" : "Ocupados ubicados"} value={zone.occupied_spaces ?? "--"} />
                       <ZoneMetric
-                        label="% Ocupacion"
+                        label="% Ocupación"
                         value={
                           zone.occupied_spaces === null || (zone.location_assignment_available && !zone.location_coverage_complete)
                             ? "--"
@@ -531,15 +540,10 @@ export default function ParkingSpacesPage({ onLogout }) {
                       />
                     </div>
 
-                    <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[.03] p-3.5">
+                    {userMarkedSpaces.length > 0 ? <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[.03] p-3.5">
                       <p className="text-xs font-black uppercase tracking-[.18em] text-white/45">
                         Marcados desde app
                       </p>
-                      {userMarkedSpaces.length === 0 ? (
-                        <p className="mt-2 text-sm leading-6 text-white/52">
-                          Ningun usuario ha marcado espacios manualmente en esta zona.
-                        </p>
-                      ) : (
                         <div className="mt-3 space-y-2">
                           {userMarkedSpaces.map((space) => (
                             <div
@@ -567,7 +571,7 @@ export default function ParkingSpacesPage({ onLogout }) {
                                     }`}
                                   >
                                     {space.confirmation_required
-                                      ? "Requiere confirmacion"
+                                      ? "Requiere confirmación"
                                       : "Activo"}
                                   </p>
                                 </div>
@@ -575,8 +579,7 @@ export default function ParkingSpacesPage({ onLogout }) {
                             </div>
                           ))}
                         </div>
-                      )}
-                    </div>
+                    </div> : null}
                   </section>
                 );
               })}
